@@ -1,99 +1,102 @@
-import shutil
+import shutil, pathlib
 from django.shortcuts import render
 from django.core.exceptions import ObjectDoesNotExist
+from django.db.models.query import QuerySet
 from xml.etree import ElementTree
-from .models import history_tags, GoodTags, BadTags, NewTags, klogic, klogger, alarms, Cutout, Shift
+from xml.etree.ElementTree import Element, ElementTree as ET_class
+from .models import history_attr, GoodTags, BadTags, NewTags, klogic, klogger, alarms, Cutout, Shift
 from .forms import KlogicForm
-from .fb_noffl import nfb
 from .alrm import alrm, stations
 
 
-def indent(elem, level=0):
-    '''создает xml c отступами'''
-    i = "\n" + level*"  "
-    if len(elem):
-        if not elem.text or not elem.text.strip():
-            elem.text = i + "  "
-        if not elem.tail or not elem.tail.strip():
-            elem.tail = i
-        for elem in elem:
-            indent(elem, level+1)
-        if not elem.tail or not elem.tail.strip():
-            elem.tail = i
-    else:
-        if level and (not elem.tail or not elem.tail.strip()):
-            elem.tail = i
+def h_remove(xml_path: pathlib.Path):
+    '''удлаение служебных символов в названии параметра'''
+    with open(xml_path, 'rt', encoding='cp1251') as file:
+        klogic_xml = file.read()
+    with open(xml_path, 'wt', encoding='cp1251') as file:
+        for h_attr in history_attr.get_h_attrs():
+            klogic_xml = klogic_xml.replace(str(h_attr), "")
+        file.write(klogic_xml)
 
 
-def h_remove(xml):
-    '''удлаение служебных символов'''
-    with open(xml, 'rt', encoding='cp1251') as file:
-        x = file.read()
-    with open(xml, 'wt', encoding='cp1251') as file:
-        all_h = history_tags.get_htagsall()
-        for tag in all_h:
-            x = x.replace(str(tag), "")
-        file.write(x)
+def check_new_tag(tag_name: str, tags: QuerySet, all_id: set) -> int:
+    '''Поиск параметра среди используемых или удаляемых, получение (set) всех id этих параметров'''
+    len_tags = len(tags)
+    for exist_tag in tags:
+        all_id.add(exist_tag.id)
+        if tag_name != exist_tag.Name:
+            len_tags = len_tags - 1
+    return len_tags
 
 
-def check_new_tag(child, tags, all_id):
-    '''Поиск параметра среди используемых и удаляемых'''
-    k = 0
-    for tag in tags:
-        all_id.add(tag.id)
-        if child != tag.Name:
-            k = k + 1
-    return k
+def append_new_tag(
+        new_tags: list,
+        controller: str,
+        tag_name: str,
+        bad_tags: QuerySet,
+        good_tags: QuerySet,
+        all_id: set):
+    '''Добавление нового параметра в список новых параметров'''
+    len_newtags = len(new_tags)
+    for exist_new_tag in new_tags:
+        if tag_name != exist_new_tag['Name']:
+            len_newtags = len_newtags - 1
+    if len_newtags == 0 and \
+            check_new_tag(tag_name, bad_tags, all_id) == 0 and \
+            check_new_tag(tag_name, good_tags, all_id) == 0:
+        print('Новый параметр:', controller, tag_name)
+        new_tags.append({'Controller': controller, 'Name': tag_name})
 
 
-def append_new_tag(new_tags, controller, name, bad_tags, good_tags, all_id):
-    m = 0
-    for p in new_tags:
-        if name != p['Name']:
-            m = m + 1
-    if m == len(new_tags):
-        if check_new_tag(name, bad_tags, all_id) == len(bad_tags):
-            if check_new_tag(name, good_tags, all_id) == len(good_tags):
-                print('Новый параметр:', controller, name)
-                new_tags.append({'Controller': controller, 'Name': name})
-
-
-def new_tags(Module, bad_tags):
+def new_tags(module: Element, bad_tags: QuerySet) -> int:
     '''Проверка на новые переменные'''
     NewTags.delete_NewTagsall()
     good_tags = GoodTags.get_GoodTagsall()
     new_tags = []
     all_id = set()
 
-    for contr in range(len(Module))[3:]:
-        controller = Module[contr].attrib['Name']
-        for child in Module[contr][1:]:
-            if child.attrib['Name'] == 'Alarms' and len(child) > 35:
-                for al in range(len(child))[1:]:
-                    if child[al].attrib['Name'].split(str(al) + "_")[1] != 'Not used':
-                        tag_name = child[al].attrib['Name'].split(str(al) + "_")[1]
-                        append_new_tag(new_tags, controller, tag_name, bad_tags, good_tags, all_id)
-            else:
-                append_new_tag(new_tags, controller, child.attrib['Name'], bad_tags, good_tags, all_id)
+    cental_alarms_flag = False
+    for Group in range(len(module))[3:]:
+        if not cental_alarms_flag:
+            controller = module[Group].attrib['Name']
+            for tag in module[Group][1:]:
+                if tag.attrib['Name'] == 'Alarms' and len(tag) > 35:
+                    for alarm_tag in range(len(tag))[1:]:
+                        try:
+                            if tag[alarm_tag].attrib['Name'].split(str(alarm_tag) + "_")[1] != 'Not used':
+                                tag_name = tag[alarm_tag].attrib['Name'].split(str(alarm_tag) + "_")[1]
+                                append_new_tag(new_tags, controller, tag_name, bad_tags, good_tags, all_id)
+                        except IndexError:
+                            cental_alarms_flag = True
+                            break
+                else:
+                    append_new_tag(new_tags, controller, tag.attrib['Name'], bad_tags, good_tags, all_id)
+        else:
+            break
 
-    print(len(new_tags))
-    if len(new_tags) > 0:
-        for tag in new_tags:
-            new_id = 1
-            while new_id in all_id:
-                new_id = new_id + 1
-            all_id.add(new_id)
-            new_tag = NewTags(id=new_id, Name=tag['Name'], Controller=tag['Controller'])
-            new_tag.save()
-    return len(new_tags)
+    if not cental_alarms_flag:
+        result = len(new_tags)
+        print(len(new_tags))
+        if len(new_tags) > 0:
+            for tag in new_tags:
+                new_id = 1
+                while new_id in all_id:
+                    new_id = new_id + 1
+                all_id.add(new_id)
+                new_tag = NewTags(id=new_id, Name=tag['Name'], Controller=tag['Controller'])
+                new_tag.save()
+    else:
+        result = -1
+
+    return result
 
 
-def delete_tags(Module, bad_tags):
-    '''Удаление ненужных переменных'''
-    for Group in Module[1:]:
+def delete_tags(module: Element, bad_tags: QuerySet):
+    '''Удаление ненужных переменных, пустых групп'''
+    for Group in module[1:]:
         if len(Group) < 2:
             print("Удалена пустая группа:", Group.attrib['Name'])
-            Module.remove(Group)
+            module.remove(Group)
         for tag in bad_tags:
             for InOut in Group[1:]:
                 if InOut.attrib['Name'] == str(tag):
@@ -102,9 +105,9 @@ def delete_tags(Module, bad_tags):
                         Group.remove(InOut)
 
 
-def add_comment(Module):
+def add_comment(module: Element):
     '''Добавление комментария для оборудования'''
-    for Group in Module[3:]:
+    for Group in module[3:]:
         comm = Group.attrib['Name'].replace('__', '..')
         Settings = Group[0]
         UserComment = Settings[1]
@@ -112,7 +115,7 @@ def add_comment(Module):
             comment.text = str(comm)
 
 
-def klogic_tree_find(tree):
+def klogic_tree_find(tree: ET_class) -> dict:
     '''Получение необходимых атрибутов из klogic.xml'''
     kl_find = {}
     kl_find['danfoss'] = tree.find('.//TasksGroup1/Protocol/Settings/Name')
@@ -126,7 +129,7 @@ def klogic_tree_find(tree):
     return kl_find
 
 
-def shift(Module, gmget):
+def shift(module: Element, gmget: str):
     '''Подсчет смещения адресов контроллеров'''
     try:
         old_shift = Shift.objects.get(gm=gmget)
@@ -134,40 +137,40 @@ def shift(Module, gmget):
     except ObjectDoesNotExist:
         pass
 
-    all_contr = []
-    sh = set()
-    for Group in range(len(Module))[1:]:
-        contr = []
-        if Module[Group].attrib['Name'] != 'Служебные теги' and Module[Group].attrib['Name'] != 'Дата и время':
-            contr.append(Module[Group].attrib['Name'])
-            contr.append(len(Module[Group]))
-            sh.add(len(Module[Group]))
-            for settings in Module[Group][1][0]:
+    all_attrs = []
+    all_lens = set()
+    for Group in range(len(module))[1:]:
+        contr_attr = []
+        if module[Group].attrib['Name'] != 'Служебные теги' and module[Group].attrib['Name'] != 'Дата и время':
+            contr_attr.append(module[Group].attrib['Name'])
+            contr_attr.append(len(module[Group]))
+            all_lens.add(len(module[Group]))
+            for settings in module[Group][1][0]:
                 if settings.tag == 'KId':
-                    contr.append(Module[Group][1].attrib['Name'])
-                    contr.append(settings.text)
-            all_contr.append(contr)
+                    contr_attr.append(module[Group][1].attrib['Name'])
+                    contr_attr.append(settings.text)
+            all_attrs.append(contr_attr)
 
     Shift.objects.create(gm=gmget, txt="media/shift/" + str(gmget) + ".txt")
     txt = Shift.objects.get(gm=gmget).txt.path
     file = open(str(txt), "w+")
-    for s in sh:
+    for l in all_lens:
         address = 0
-        for n in range(len(all_contr)):
-            if all_contr[n][1] == s:
+        for a in range(len(all_attrs)):
+            if all_attrs[a][1] == l:
                 if address == 0:
-                    q = 0
-                    address = float(all_contr[n][3])
+                    current_shift = 0
+                    address = float(all_attrs[a][3])
                 else:
-                    q = float(all_contr[n][3]) - address
-                    address = float(all_contr[n][3])
-                file.write(('Кол-во переменных = ' + str(s) + '. ' + str(all_contr[n][0]) + '. Смещение = ' + str(q) + '\n'))
+                    current_shift = float(all_attrs[a][3]) - address
+                    address = float(all_attrs[a][3])
+                file.write(('Кол-во переменных = ' + str(l) + '. ' +
+                            str(all_attrs[a][0]) + '. Смещение = ' + str(current_shift) + '\n'))
     file.close()
 
 
-def noffl(tree):
+def noffl(tree: ET_class):
     '''Привязка входов к функциональном блокам noffl'''
-    root = tree.getroot()
     kl_find = klogic_tree_find(tree)
     danfoss = kl_find['danfoss']
     gm = kl_find['gm']
@@ -177,83 +180,81 @@ def noffl(tree):
     task_name = kl_find['task_name']
 
     noffl_tags = GoodTags.get_noffl_tags()
-    fb = nfb
-    j = 10
-    strs = []
-    tag_settings = []
-    w = -1
-    n = 0
-    u = 0
-    y = 1
+    num_of_inputs = 10   #Количество входов в каждом Функциональном блоке noffl
+    strs = []            #Список со строками, содержащими путь к переменным в xml
+    tag_settings = []    #Список, содержащий данные для заполнения в группе Connected функц.блока noffl
+    num_of_contr = 0     #Переменная для подсчета контроллеров, подключенных к функц.блоку noffl
+    num_of_fb = 0        #Переменная для подсчета фнукц.блоков noffl
 
-    for i in range(len(fsection))[1:]:
-        fblock = fsection[i][0][0]
-        for h in range(len(fb)):
-            if fblock.text == fb[h]:
-                n = n + 1
-                for x in range(len(fsection[i]))[3:]:
-                    if (x + j * h) < len(Groups):
-                        if (x + 1) == len(fsection[i]):
+    for fb in range(len(fsection))[1:]:
+        fblock = fsection[fb][0][0]                              #Название функц.блока
+        for h in range(0, 15):
+            if fblock.text == f'noffl {h+1}':
+                num_of_fb = num_of_fb + 1                       #Подсчет функц.блоков noffl
+                for fb_input in range(len(fsection[fb]))[3:]:           #3 входа ФБ не используются на этом этапе
+                    if (fb_input + num_of_inputs * h) < len(Groups):   #проверка, чтобы текущий номер входа ФБ не превышал кол-во контроллеров
+                        if (fb_input + 1) == len(fsection[fb]):         #последний вход ФБ
                             next
                         else:
-                            inout = Groups[x + j * h]
+                            inout = Groups[fb_input + num_of_inputs * h]
                             contr = inout.attrib['Name']
                             flag = False
-                            for b in range(len(inout))[1:]:
-                                if flag:
+                            for tag in range(len(inout))[1:]:
+                                if flag:                      #проверка на тот случай, если контроллер уже добавлен в ФБ
                                     break
-                                for tag in noffl_tags:
-                                    if inout[b].attrib['Name'] == str(tag):
-                                        tag_setting = inout[b][0]
+                                for noffl_tag in noffl_tags:
+                                    if inout[tag].attrib['Name'] == str(noffl_tag):
+                                        tag_setting = inout[tag][0]
                                         tag_settings.append(tag_setting)
-                                        tag = inout[b].attrib['Name']
-                                        st = f'{danfoss.text}.{gm.text}.{contr}.{tag}'
+                                        tag_name = inout[tag].attrib['Name']
+                                        st = f'{danfoss.text}.{gm.text}.{contr}.{tag_name}'
                                         strs.append(st)
                                         flag = True
                     else:
                         break
 
-                for v in range(len(fsection[i]))[1:]:
-                    if (w + 4) < len(Groups):
-                        var = fsection[i][v]
-                        if var.attrib['Name'] == 'N' or var.attrib['Name'] == 'T' or var.attrib['Name'] == 'pOffline':
-                            print(i, fsection[i][0][0].text, 'v = ', v, var.attrib['Name'])
+                for v in range(len(fsection[fb]))[1:]:
+                    if (num_of_contr + 3) < len(Groups):   #len(Groups) - общее колличество групп в Klogic XML, включая служебные(3 шт.)
+                        noffl_input = fsection[fb][v]               #Вход функционального блока noffl
+                        if noffl_input.attrib['Name'] == 'N' or \
+                                noffl_input.attrib['Name'] == 'T' or \
+                                noffl_input.attrib['Name'] == 'pOffline':
+                            print(fb, fsection[fb][0][0].text, 'v = ', v, noffl_input.attrib['Name'])
                         else:
-                            w = w + 1
 
                             ''' Формирование служебной строки <TaskElements> '''
-                            in_name = var.attrib['Name']
+                            in_name = noffl_input.attrib['Name']
                             str_link = f'{task_name.text}.{fblock.text}.{in_name}'
-                            te = f'&lt;ExternalLink&gt;&lt;Path&gt;{task_name.text}.{fblock.text}.{in_name}&lt;/Path&gt;&lt;MarkerLink&gt;&lt;Link&gt;{strs[w]}&lt;/Link&gt;&lt;showAllConnections&gt;False&lt;/showAllConnections&gt;&lt;offsetMarkerFB&gt;40&lt;/offsetMarkerFB&gt;&lt;/MarkerLink&gt;&lt;/ExternalLink&gt;'
+                            te = f'&lt;ExternalLink&gt;&lt;Path&gt;{task_name.text}.{fblock.text}.{in_name}&lt;/Path&gt;&lt;MarkerLink&gt;&lt;Link&gt;{strs[num_of_contr]}&lt;/Link&gt;&lt;showAllConnections&gt;False&lt;/showAllConnections&gt;&lt;offsetMarkerFB&gt;40&lt;/offsetMarkerFB&gt;&lt;/MarkerLink&gt;&lt;/ExternalLink&gt;'
                             teall = teall + te
 
                             ''' Подключение тегов на входы функционального блока '''
-                            ts = tag_settings[w]
+                            ts = tag_settings[num_of_contr]
                             Connected2 = ElementTree.Element("Connected")
                             Connected2.text = str_link
                             ts.insert(0, Connected2)
                             Connected = ElementTree.Element("Connected")
-                            Connected.text = strs[w]
-                            var[0].insert(1, Connected)
-                            indent(root)
-                            print(i, 'N =', (w + 1) - j * (n - 1), str_link, strs[w])
+                            Connected.text = strs[num_of_contr]
+                            noffl_input[0].insert(1, Connected)
+                            print(fb, 'N =', (num_of_contr - num_of_inputs * (num_of_fb - 1)), str_link, strs[num_of_contr])
+                            num_of_contr = num_of_contr + 1  # Подсчет контроллеров, подключенных к функц.блоку noffl
                     else:
                         break
-                N = fsection[i][5][0]
-                u = (w + 1) - j * (n - 1)
-                N.remove(N[3])
+                N_input = fsection[fb][5][0]                 # Вход ФБ с колличеством подключенных контроллеров
+                connected_inputs = num_of_contr - num_of_inputs * (num_of_fb - 1)
+                N_input.remove(N_input[3])
                 InitValue0 = ElementTree.Element("InitValue0")
-                if ((w + 1) - j * (n - 1)) > 0:
-                    print(N[3].text, '%.2f' % u)
-                    InitValue0.text = '%.2f' % u
+                if connected_inputs > 0:
+                    print(N_input[3].text, '%.2f' % connected_inputs)
+                    InitValue0.text = '%.2f' % connected_inputs
                 else:
                     InitValue0.text = '%.2f' % 0
-                N.insert(3, InitValue0)
+                N_input.insert(3, InitValue0)
 
             else:
                 next
             if fblock.text == 'smart divide':
-                y = i
+                smart_divide = fb                               #Номер ФБ smart divide
             else:
                 next
 
@@ -265,13 +266,13 @@ def noffl(tree):
     TaskElements.text = teall
     te.insert(7, TaskElements)
 
-    ''' Вставка количества контроллеров в ФБ '''
-    print('Общее количество контроллеров:', ((n - 1) * 10) + u, 'y=', y, 'u=', u)
-    for t in range(len(fsection[y]))[1:]:
-        if fsection[y][t].attrib['Name'] == 'Делитель 1':
-            all_contr = fsection[y][t][0]
+    ''' Вставка количества контроллеров в ФБ smart divide'''
+    print('Общее количество контроллеров:', ((num_of_fb - 1) * 10) + connected_inputs, 'u=', connected_inputs)
+    for t in range(len(fsection[smart_divide]))[1:]:
+        if fsection[smart_divide][t].attrib['Name'] == 'Делитель 1':
+            all_contr = fsection[smart_divide][t][0]
             all_contr.remove(all_contr[3])
-            nall = ((n - 1) * 10) + u
+            nall = ((num_of_fb - 1) * 10) + connected_inputs
             InitValueNAll = ElementTree.Element("InitValue0")
             InitValueNAll.text = '%.2f' % nall
             all_contr.insert(3, InitValueNAll)
@@ -295,7 +296,6 @@ def bdtp(gmget, tree, Module, klogger_xml, klogger_tree):
         print('len(old_groups)=', len(old_groups))
         if len(old_groups) > 0:
             klogger_root.remove(old_groups)
-            #indent(klogger_root)
             klogger_tree.write(klogger_xml, encoding='UTF-8')
     except (TypeError) as e:
         print('Конфигурация БДТП пуста')
@@ -371,7 +371,6 @@ def bdtp(gmget, tree, Module, klogger_xml, klogger_tree):
             tree_insert(klogger_tree, str_par, 'Name', 9, all_bdtp_tags[grp][par]['st'])
             tree_insert(klogger_tree, str_par, 'UsePreAgr', 10, 'false')
 
-    #indent(klogger_root)
     klogger_tree.write(klogger_xml, encoding='UTF-8')
     print(all_par)
 
@@ -452,7 +451,7 @@ def alarm_insert(attr):
     except (KeyError):
         MeasureUnits = False
 
-    if not attr['al']:
+    if not attr['al_flag']:
         tag_settings = attr['InOut'][0]
     else:
         tag_settings = attr['InOut'][attr['al']][0]
@@ -567,6 +566,7 @@ def alarm(gmget, tree, Module, alarm_xml):
 
     for Group in range(len(Module))[1:]:
         central = False
+        cutout_flag = False
         for InOut in Module[Group][1:]:
             if central:
                 break
@@ -577,7 +577,7 @@ def alarm(gmget, tree, Module, alarm_xml):
                         break
         for InOut in Module[Group][1:]:
             for tag in tags:
-                al = False
+                al_flag = False
                 attr = {
                     'tree': tree,
                     'gmget': gmget,
@@ -587,7 +587,7 @@ def alarm(gmget, tree, Module, alarm_xml):
                     'tag': tag,
                     'alarm_tree': alarm_tree,
                     'id': id,
-                    'al': al,
+                    'al_flag': al_flag,
                     'tags_str': tags_str,
                     'new_product': new_product
                 }
@@ -595,6 +595,8 @@ def alarm(gmget, tree, Module, alarm_xml):
                     for al in range(len(InOut))[1:]:
                         if InOut[al].attrib['Name'].split(str(al) + "_")[1] == str(tag.Name):
                             if tag.alarm_id != 'None' and tag.alarm_id != '0':
+                                attr['al_flag'] = True
+                                attr['al'] = al
                                 alarm_insert(attr)
                                 id = id + 1
                 if InOut.attrib['Name'] == str(tag.Name):
@@ -607,7 +609,12 @@ def alarm(gmget, tree, Module, alarm_xml):
                                 if not central:
                                     alarm_insert(attr)
                             else:
-                                alarm_insert(attr)
+                                if tag.alarm_id == 'Cutout' and not cutout_flag:
+                                    alarm_insert(attr)
+                                    cutout_flag = True
+                                else:
+                                    if tag.alarm_id != 'Cutout':
+                                        alarm_insert(attr)
                         id = id + 1
 
     alarms_groups = alarm_root.findall('.//Children')
@@ -619,7 +626,6 @@ def alarm(gmget, tree, Module, alarm_xml):
             else:
                 item = item + 1
 
-    #indent(alarm_root)
     alarm_tree.write(new_xml, encoding='UTF-8')
 
     with open(new_xml, 'rt', encoding='UTF-8') as file:
@@ -643,11 +649,11 @@ def index(request):
         gmget = request.POST.get('gm')
         context['gm'] = gmget
         try:
-            xml = klogic.objects.get(gm=gmget).xml.path
+            xml_path = klogic.objects.get(gm=gmget).xml.path
             bdtp_checkbox = request.POST.get('bd')
             alarm_checkbox = request.POST.get('alarm')
-            h_remove(xml)
-            tree = ElementTree.parse(xml)
+            h_remove(xml_path)
+            tree = ElementTree.parse(xml_path)
             Module = tree.find('.//Module')
             try:
                 print(Module.tag)
@@ -662,38 +668,41 @@ def index(request):
             context['text'] = "Новые переменные:"
             context['len_new_tags'] = len_new_tags
         else:
-            delete_tags(Module, bad_tags)
-            add_comment(Module)
-            noffl(tree)
-            tree.write(xml)
-            shift(Module, gmget)
-            if bdtp_checkbox:
-                print('bdtp_checkbox:', bdtp_checkbox)
-                try:
-                    klogger_xml = klogger.objects.get(gm=gmget).xml.path
-                    klogger_tree = ElementTree.parse(klogger_xml)
-                    DBVersion = klogger_tree.find('.//DBVersion')
+            if len_new_tags == -1:
+                context['text'] = "В группе Alarms у централи добавлены не все переменные"
+            else:
+                delete_tags(Module, bad_tags)
+                add_comment(Module)
+                noffl(tree)
+                tree.write(xml_path)
+                shift(Module, gmget)
+                if bdtp_checkbox:
+                    print('bdtp_checkbox:', bdtp_checkbox)
                     try:
-                        print(DBVersion.tag)
-                        context['text_bdtp'] = bdtp(gmget, tree, Module, klogger_xml, klogger_tree)
-                    except AttributeError:
-                        context['text_bdtp'] = "Klogger XML: Неправильный формат"
-                except (ObjectDoesNotExist, FileNotFoundError):
-                    context['text_bdtp'] = "Klogger XML не найден"
-            if alarm_checkbox:
-                print('alarm_checkbox:', alarm_checkbox)
-                try:
-                    alarm_xml = alarms.objects.get(gm='default_alarm_xml').xml.path
-                    alarm_tree = ElementTree.parse(alarm_xml)
-                    GroupItem = alarm_tree.find('.//GroupItem')
+                        klogger_xml = klogger.objects.get(gm=gmget).xml.path
+                        klogger_tree = ElementTree.parse(klogger_xml)
+                        DBVersion = klogger_tree.find('.//DBVersion')
+                        try:
+                            print(DBVersion.tag)
+                            context['text_bdtp'] = bdtp(gmget, tree, Module, klogger_xml, klogger_tree)
+                        except AttributeError:
+                            context['text_bdtp'] = "Klogger XML: Неправильный формат"
+                    except (ObjectDoesNotExist, FileNotFoundError):
+                        context['text_bdtp'] = "Klogger XML не найден"
+                if alarm_checkbox:
+                    print('alarm_checkbox:', alarm_checkbox)
                     try:
-                        print(GroupItem.tag)
-                        context['text_al'] = alarm(gmget, tree, Module, alarm_xml)
-                    except AttributeError:
-                        context['text_al'] = "Alarm XML: Неправильный формат"
-                except (ObjectDoesNotExist, FileNotFoundError):
-                    context['text_al'] = "Alarm XML не найден"
+                        alarm_xml = alarms.objects.get(gm='default_alarm_xml').xml.path
+                        alarm_tree = ElementTree.parse(alarm_xml)
+                        GroupItem = alarm_tree.find('.//GroupItem')
+                        try:
+                            print(GroupItem.tag)
+                            context['text_al'] = alarm(gmget, tree, Module, alarm_xml)
+                        except AttributeError:
+                            context['text_al'] = "Alarm XML: Неправильный формат"
+                    except (ObjectDoesNotExist, FileNotFoundError):
+                        context['text_al'] = "Alarm XML не найден"
 
-            context['text_kl'] = "Klogic XML: Обработка завершена"
+                context['text_kl'] = "Klogic XML: Обработка завершена"
 
     return render(request, 'xoxml/index.html', context)

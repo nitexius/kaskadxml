@@ -76,26 +76,26 @@ class Cutout(models.Model):
         return self.name
 
 
-class history_tags(models.Model):
+class history_attr(models.Model):
     '''Служебные символы в названии переменной'''
-    htags = models.CharField(max_length=30)
+    h_attr = models.CharField(max_length=30)
 
     class Meta:
-        ordering = ['htags']
+        ordering = ['h_attr']
         verbose_name = '[H_   ]'
         verbose_name_plural = '[H_   ]'
 
     @classmethod
-    def get_htagsall(cls):
+    def get_h_attrs(cls):
         result = []
         for h in cls.objects.all():
-            tag = h.htags
-            tag = tag.replace('"', "")
-            result.append(tag)
+            attr = h.h_attr
+            attr = attr.replace('"', "")
+            result.append(attr)
         return result
 
     def __str__(self):
-        return self.htags
+        return self.h_attr
 
 
 class GoodTags(models.Model):
@@ -130,6 +130,11 @@ class GoodTags(models.Model):
     def get_central_tag(cls):
         centralTag = GoodTags.objects.filter(alarm_id='central')
         return centralTag
+
+    @classmethod
+    def get_id(cls):
+        id = GoodTags.objects.filter(alarm_id='central')
+        return id
 
     def __str__(self):
         return self.Name
