@@ -20,7 +20,7 @@ def h_remove(xml_path: pathlib.Path):
 
 
 def check_new_tag(tag_name: str, tags: QuerySet, all_id: set) -> int:
-    '''Поиск параметра среди используемых или удаляемых, получение (set) всех id этих параметров'''
+    '''Поиск параметра среди используемых или удаляемых, если не найден - возвращается 0. Получение (set) всех id этих параметров'''
     len_tags = len(tags)
     for exist_tag in tags:
         all_id.add(exist_tag.id)
