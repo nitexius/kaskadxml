@@ -37,58 +37,60 @@ def h_remove(xml_path: pathlib.Path):
     write_file(xml_path, buffer, 'cp1251')
 
 
-def append_new_tag(new_tags: list, contr_of_new_tag: list, controller: str, tag_name: str,):
+def new_id(attrs: dict) -> int:
+    new_id = 1
+    while new_id in attrs['all_id'] or \
+            new_id in attrs['good_tags_ids'] or \
+            new_id in attrs['bad_tags_ids']:
+        new_id = new_id + 1
+    attrs['all_id'].add(new_id)
+    return new_id
+
+
+def append_new_tag(attrs: dict):
     '''Добавление нового параметра в список новых параметров'''
     if all([
-        not tag_name in new_tags,
-        not GoodTags.is_exist_tag(tag_name),
-        not BadTags.is_exist_tag(tag_name)
+        not attrs['tag_name'] in attrs['new_tags'],
+        not GoodTags.is_exist_tag(attrs['tag_name']),
+        not BadTags.is_exist_tag(attrs['tag_name'])
     ]):
-        print(len(new_tags), 'Новый параметр:', controller, tag_name)
-        new_tags.append(tag_name)
-        contr_of_new_tag.append(controller)
+        print(len(attrs['new_tags']), 'Новый параметр:', attrs['controller'], attrs['tag_name'])
+        attrs['new_tags'].append(attrs['tag_name'])
+        new_tag = NewTags(id=new_id(attrs), Name=attrs['tag_name'], Controller=attrs['controller'])
+        new_tag.save()
 
 
 def new_tags(module: Element) -> int:
     '''Проверка на новые переменные'''
     NewTags.delete_NewTagsall()
-    new_tags = []
-    contr_of_new_tag = []
-    all_id = set()
-    good_tags_ids = GoodTags.get_all_id()
-    bad_tags_ids = BadTags.get_all_id()
+    attrs = {
+        'new_tags': [],
+        'all_id': set(),
+        'good_tags_ids': GoodTags.get_all_id(),
+        'bad_tags_ids': BadTags.get_all_id()}
 
     cental_alarms_flag = False
     for Group in range(len(module))[3:]:
         if not cental_alarms_flag:
-            controller = module[Group].attrib['Name']
+            attrs['controller'] = module[Group].attrib['Name']
             for tag in module[Group][1:]:
                 if tag.attrib['Name'] == 'Alarms' and len(tag) > 35:
                     for alarm_tag in range(len(tag))[1:]:
                         try:
                             if tag[alarm_tag].attrib['Name'].split(str(alarm_tag) + "_")[1] != 'Not used':
-                                tag_name = tag[alarm_tag].attrib['Name'].split(str(alarm_tag) + "_")[1]
-                                append_new_tag(new_tags, contr_of_new_tag, controller, tag_name)
+                                attrs['tag_name'] = tag[alarm_tag].attrib['Name'].split(str(alarm_tag) + "_")[1]
+                                append_new_tag(attrs)
                         except IndexError:
                             cental_alarms_flag = True
                             break
                 else:
-                    append_new_tag(new_tags, contr_of_new_tag, controller, tag.attrib['Name'])
+                    attrs['tag_name'] = tag.attrib['Name']
+                    append_new_tag(attrs)
         else:
             break
 
     if not cental_alarms_flag:
-        result = len(new_tags)
-        if len(new_tags) > 0:
-            for tag in range(len(new_tags)):
-                new_id = 1
-                while new_id in all_id or \
-                        new_id in good_tags_ids or \
-                        new_id in bad_tags_ids:
-                    new_id = new_id + 1
-                all_id.add(new_id)
-                new_tag = NewTags(id=new_id, Name=new_tags[tag], Controller=contr_of_new_tag[tag])
-                new_tag.save()
+        result = len(attrs['new_tags'])
     else:
         result = -1
 
