@@ -3,18 +3,21 @@
 {% block content %}
 
 <div class="weather">
-	<div class="container mt-5">
-		<div class="row">
-			<div class="col-4 offset-4">
-				<form method="POST">
-					{% csrf_token %}
-					{{ form.as_table }}
-					<div class="form_error">{{ text }} {{ len_new_tags }}</div>
-					<input type="submit" value="Send">
-				</form>
-			</div>
-		</div>
-	</div>
+    <div class="container mt-5">
+        <div class="row">
+            <div class="col-4 offset-4">
+                <form method="POST">
+                    {% csrf_token %}
+                    {{ form.as_table }}
+                    <div class="form_error">{{ text_kl }}</div>
+                    <div class="form_error">{{ text_bdtp }}</div>
+                    <div class="form_error">{{ text_al }}</div>
+                    <div class="form_error">{{ text }} {{ len_new_tags }}</div>
+                    <input type="submit" value="Send">
+                </form>
+            </div>
+        </div>
+    </div>
 </div>
 
 {% endblock %}
