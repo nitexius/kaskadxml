@@ -1,7 +1,8 @@
-import shutil, pathlib
+import shutil, pathlib, io
 from django.shortcuts import render
 from django.core.exceptions import ObjectDoesNotExist
 from django.db.models.query import QuerySet
+from typing import Iterable
 from xml.etree import ElementTree
 from xml.etree.ElementTree import Element, ElementTree as ET_class
 from .models import history_attr, GoodTags, BadTags, NewTags, klogic, klogger, alarms, Cutout, Shift
@@ -9,51 +10,55 @@ from .forms import KlogicForm
 from .alrm import alrm, stations
 
 
+def read_file(src: pathlib.Path, encoding: str) -> bytes:
+    '''получение файла'''
+    with open(src, 'rt', encoding=encoding) as file:
+        src_file = file.read()
+    return src_file
+
+
+def replace_attrs(buffer: bytes, attrs: Iterable, replace_to: str) -> object:
+    '''удлаение служебных символов'''
+    for replace_from in attrs:
+        buffer = buffer.replace(replace_from, replace_to)
+    return buffer
+
+
+def write_file(src: pathlib.Path, buffer: object, encoding: str):
+    '''запись файла'''
+    with open(src, 'wt', encoding=encoding) as file:
+        file.write(buffer)
+
+
 def h_remove(xml_path: pathlib.Path):
     '''удлаение служебных символов в названии параметра'''
-    with open(xml_path, 'rt', encoding='cp1251') as file:
-        klogic_xml = file.read()
-    with open(xml_path, 'wt', encoding='cp1251') as file:
-        for h_attr in history_attr.get_h_attrs():
-            klogic_xml = klogic_xml.replace(str(h_attr), "")
-        file.write(klogic_xml)
+    file = read_file(xml_path, 'cp1251')
+    buffer = replace_attrs(file, history_attr.get_h_attrs(), "")
+    write_file(xml_path, buffer, 'cp1251')
 
 
-def check_new_tag(tag_name: str, tags: QuerySet, all_id: set) -> int:
-    '''Поиск параметра среди используемых или удаляемых, если не найден - возвращается 0. Получение (set) всех id этих параметров'''
-    len_tags = len(tags)
-    for exist_tag in tags:
-        all_id.add(exist_tag.id)
-        if tag_name != exist_tag.Name:
-            len_tags = len_tags - 1
-    return len_tags
-
-
-def append_new_tag(
-        new_tags: list,
-        controller: str,
-        tag_name: str,
-        bad_tags: QuerySet,
-        good_tags: QuerySet,
-        all_id: set):
+def append_new_tag(new_tags: list, contr_of_new_tag: list, controller: str, tag_name: str,):
     '''Добавление нового параметра в список новых параметров'''
-    len_newtags = len(new_tags)
-    for exist_new_tag in new_tags:
-        if tag_name != exist_new_tag['Name']:
-            len_newtags = len_newtags - 1
-    if len_newtags == 0 and \
-            check_new_tag(tag_name, bad_tags, all_id) == 0 and \
-            check_new_tag(tag_name, good_tags, all_id) == 0:
-        print('Новый параметр:', controller, tag_name)
-        new_tags.append({'Controller': controller, 'Name': tag_name})
+    new_tag_number = 0
+    if all([
+        not tag_name in new_tags,
+        not GoodTags.is_exist_tag(tag_name),
+        not BadTags.is_exist_tag(tag_name)
+    ]):
+        print(len(new_tags), 'Новый параметр:', controller, tag_name)
+        new_tags.append(tag_name)
+        contr_of_new_tag.append(controller)     #Контроллер добавляется в отдельный список, т.к. иначе (not tag_name in new_tags,) некорректно работает
+        new_tag_number = new_tag_number + 1     #Контроллер нужен для удобства последующей ручной сортировки тегов
 
 
-def new_tags(module: Element, bad_tags: QuerySet) -> int:
+def new_tags(module: Element) -> int:
     '''Проверка на новые переменные'''
     NewTags.delete_NewTagsall()
-    good_tags = GoodTags.get_GoodTagsall()
     new_tags = []
+    contr_of_new_tag = []
     all_id = set()
+    good_tags_ids = GoodTags.get_all_id()
+    bad_tags_ids = BadTags.get_all_id()
 
     cental_alarms_flag = False
     for Group in range(len(module))[3:]:
@@ -65,25 +70,24 @@ def new_tags(module: Element, bad_tags: QuerySet) -> int:
                         try:
                             if tag[alarm_tag].attrib['Name'].split(str(alarm_tag) + "_")[1] != 'Not used':
                                 tag_name = tag[alarm_tag].attrib['Name'].split(str(alarm_tag) + "_")[1]
-                                append_new_tag(new_tags, controller, tag_name, bad_tags, good_tags, all_id)
+                                append_new_tag(new_tags, contr_of_new_tag, controller, tag_name)
                         except IndexError:
                             cental_alarms_flag = True
                             break
                 else:
-                    append_new_tag(new_tags, controller, tag.attrib['Name'], bad_tags, good_tags, all_id)
+                    append_new_tag(new_tags, contr_of_new_tag, controller, tag.attrib['Name'])
         else:
             break
 
     if not cental_alarms_flag:
         result = len(new_tags)
-        print(len(new_tags))
         if len(new_tags) > 0:
-            for tag in new_tags:
+            for tag in range(len(new_tags)):
                 new_id = 1
-                while new_id in all_id:
+                while new_id in all_id or new_id in good_tags_ids or new_id in bad_tags_ids:
                     new_id = new_id + 1
                 all_id.add(new_id)
-                new_tag = NewTags(id=new_id, Name=tag['Name'], Controller=tag['Controller'])
+                new_tag = NewTags(id=new_id, Name=new_tags[tag], Controller=contr_of_new_tag[tag])
                 new_tag.save()
     else:
         result = -1
@@ -658,7 +662,7 @@ def index(request):
             try:
                 print(Module.tag)
                 bad_tags = BadTags.get_BadTagsall()
-                len_new_tags = new_tags(Module, bad_tags)
+                len_new_tags = new_tags(Module)
             except AttributeError:
                 context['text_kl'] = "Klogic XML: Неправильный формат"
         except (ObjectDoesNotExist, FileNotFoundError):

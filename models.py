@@ -117,6 +117,10 @@ class GoodTags(models.Model):
         return GoodTag
 
     @classmethod
+    def get_all_id(cls):
+        return set(GoodTags.objects.values_list('id', flat=True))
+
+    @classmethod
     def get_noffl_tags(cls):
         nofflTag = GoodTags.objects.filter(noffl='1')
         return nofflTag
@@ -132,9 +136,8 @@ class GoodTags(models.Model):
         return centralTag
 
     @classmethod
-    def get_id(cls):
-        id = GoodTags.objects.filter(alarm_id='central')
-        return id
+    def is_exist_tag(cls, tag_name: str):
+        return GoodTags.objects.filter(Name=tag_name).exists()
 
     def __str__(self):
         return self.Name
@@ -153,6 +156,14 @@ class BadTags(models.Model):
     def get_BadTagsall(cls):
         BadTag = BadTags.objects.all()
         return BadTag
+
+    @classmethod
+    def get_all_id(cls):
+        return set(BadTags.objects.values_list('id', flat=True))
+
+    @classmethod
+    def is_exist_tag(cls, tag_name: str):
+        return BadTags.objects.filter(Name=tag_name).exists()
 
     def __str__(self):
         return self.Name
