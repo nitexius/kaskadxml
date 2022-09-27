@@ -39,7 +39,6 @@ def h_remove(xml_path: pathlib.Path):
 
 def append_new_tag(new_tags: list, contr_of_new_tag: list, controller: str, tag_name: str,):
     '''Добавление нового параметра в список новых параметров'''
-    new_tag_number = 0
     if all([
         not tag_name in new_tags,
         not GoodTags.is_exist_tag(tag_name),
@@ -47,8 +46,7 @@ def append_new_tag(new_tags: list, contr_of_new_tag: list, controller: str, tag_
     ]):
         print(len(new_tags), 'Новый параметр:', controller, tag_name)
         new_tags.append(tag_name)
-        contr_of_new_tag.append(controller)     #Контроллер добавляется в отдельный список, т.к. иначе (not tag_name in new_tags,) некорректно работает
-        new_tag_number = new_tag_number + 1     #Контроллер нужен для удобства последующей ручной сортировки тегов
+        contr_of_new_tag.append(controller)
 
 
 def new_tags(module: Element) -> int:
