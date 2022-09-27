@@ -84,7 +84,9 @@ def new_tags(module: Element) -> int:
         if len(new_tags) > 0:
             for tag in range(len(new_tags)):
                 new_id = 1
-                while new_id in all_id or new_id in good_tags_ids or new_id in bad_tags_ids:
+                while new_id in all_id or \
+                        new_id in good_tags_ids or \
+                        new_id in bad_tags_ids:
                     new_id = new_id + 1
                 all_id.add(new_id)
                 new_tag = NewTags(id=new_id, Name=new_tags[tag], Controller=contr_of_new_tag[tag])
