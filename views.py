@@ -5,92 +5,107 @@ from django.db.models.query import QuerySet
 from typing import Iterable
 from xml.etree import ElementTree
 from xml.etree.ElementTree import Element, ElementTree as ET_class
-from .models import history_attr, GoodTags, BadTags, NewTags, klogic, klogger, alarms, Cutout, Shift
+from .models import history_attr, GoodTags, BadTags, NewTags, klogic, klogger, alarms, Cutout, Shift, NewTagAttrs, KlogicAttrs
 from .forms import KlogicForm
 from .alrm import alrm, stations
 
 
-def read_file(src: pathlib.Path, encoding: str) -> bytes:
+def read_file(src: pathlib.Path, encoding: str) -> str:
     '''получение файла'''
     with open(src, 'rt', encoding=encoding) as file:
         src_file = file.read()
     return src_file
 
 
-def replace_attrs(buffer: bytes, attrs: Iterable, replace_to: str) -> object:
+def replace_attrs(buffer: str, attrs: Iterable, replace_to: str) -> str:
     '''удлаение служебных символов'''
     for replace_from in attrs:
         buffer = buffer.replace(replace_from, replace_to)
     return buffer
 
 
-def write_file(src: pathlib.Path, buffer: object, encoding: str):
+def write_file(src: pathlib.Path, buffer: str, encoding: str):
     '''запись файла'''
     with open(src, 'wt', encoding=encoding) as file:
         file.write(buffer)
 
 
-def h_remove(xml_path: pathlib.Path):
-    '''удлаение служебных символов в названии параметра'''
-    file = read_file(xml_path, 'cp1251')
-    buffer = replace_attrs(file, history_attr.get_h_attrs(), "")
-    write_file(xml_path, buffer, 'cp1251')
+def modify_file(source: str, encoding: str, modify_func: callable, save_to: pathlib.Path):
+    write_file(save_to, modify_func(source), encoding)
 
 
-def new_id(attrs: dict) -> int:
-    new_id = 1
-    while new_id in attrs['all_id'] or \
-            new_id in attrs['good_tags_ids'] or \
-            new_id in attrs['bad_tags_ids']:
-        new_id = new_id + 1
-    attrs['all_id'].add(new_id)
-    return new_id
+def h_remove(file: str) -> str:
+     '''удлаение служебных символов в названии параметра'''
+     return replace_attrs(file, history_attr.get_h_attrs(), "")
 
 
-def append_new_tag(attrs: dict):
+def generate_id(attrs: NewTagAttrs) -> int:
+    '''Получение нового id, которого нет в моделях GoodTags, BadTags'''
+    id = 1
+    while any([id in attrs.all_id, id in attrs.exist_ids]):
+        id += 1
+    return id
+
+
+def save_new_tag(attrs: NewTagAttrs) -> NewTagAttrs:
     '''Добавление нового параметра в список новых параметров'''
+    attrs.new_tag = False
     if all([
-        not attrs['tag_name'] in attrs['new_tags'],
-        not GoodTags.is_exist_tag(attrs['tag_name']),
-        not BadTags.is_exist_tag(attrs['tag_name'])
+        not attrs.tag_name in attrs.new_tags,
+        not GoodTags.is_exist_tag(attrs.tag_name),
+        not BadTags.is_exist_tag(attrs.tag_name)
     ]):
-        print(len(attrs['new_tags']), 'Новый параметр:', attrs['controller'], attrs['tag_name'])
-        attrs['new_tags'].append(attrs['tag_name'])
-        new_tag = NewTags(id=new_id(attrs), Name=attrs['tag_name'], Controller=attrs['controller'])
+        print(len(attrs.new_tags), 'Новый параметр:', attrs.controller, attrs.tag_name)
+        attrs.id = generate_id(attrs)
+        new_tag = NewTags(id=attrs.id, Name=attrs.tag_name, Controller=attrs.controller)
         new_tag.save()
+        attrs.new_tag = True
+    return attrs
 
 
 def new_tags(module: Element) -> int:
     '''Проверка на новые переменные'''
     NewTags.delete_NewTagsall()
-    attrs = {
-        'new_tags': [],
-        'all_id': set(),
-        'good_tags_ids': GoodTags.get_all_id(),
-        'bad_tags_ids': BadTags.get_all_id()}
-
+    exist_ids = set()
+    for id in GoodTags.get_all_id() | BadTags.get_all_id():
+        exist_ids.add(id)
+    attrs = NewTagAttrs(
+        new_tags=[],
+        all_id=set(),
+        exist_ids=exist_ids,
+        controller='',
+        tag_name='',
+        new_tag=False,
+        id=1
+    )
     cental_alarms_flag = False
     for Group in range(len(module))[3:]:
         if not cental_alarms_flag:
-            attrs['controller'] = module[Group].attrib['Name']
+            attrs.controller = module[Group].attrib['Name']
             for tag in module[Group][1:]:
                 if tag.attrib['Name'] == 'Alarms' and len(tag) > 35:
                     for alarm_tag in range(len(tag))[1:]:
                         try:
                             if tag[alarm_tag].attrib['Name'].split(str(alarm_tag) + "_")[1] != 'Not used':
-                                attrs['tag_name'] = tag[alarm_tag].attrib['Name'].split(str(alarm_tag) + "_")[1]
-                                append_new_tag(attrs)
+                                attrs.tag_name = tag[alarm_tag].attrib['Name'].split(str(alarm_tag) + "_")[1]
+                                check = save_new_tag(attrs)
+                                if check.new_tag:
+                                    attrs.new_tags.append(attrs.tag_name)
+                                    attrs.all_id.add(check.id)
                         except IndexError:
                             cental_alarms_flag = True
                             break
                 else:
-                    attrs['tag_name'] = tag.attrib['Name']
-                    append_new_tag(attrs)
+                    attrs.tag_name = tag.attrib['Name']
+                    check = save_new_tag(attrs)
+                    if check.new_tag:
+                        attrs.new_tags.append(attrs.tag_name)
+                        attrs.all_id.add(check.id)
         else:
             break
 
     if not cental_alarms_flag:
-        result = len(attrs['new_tags'])
+        result = len(attrs.new_tags)
     else:
         result = -1
 
@@ -121,17 +136,18 @@ def add_comment(module: Element):
             comment.text = str(comm)
 
 
-def klogic_tree_find(tree: ET_class) -> dict:
+def klogic_tree_find(tree: ET_class) -> KlogicAttrs:
     '''Получение необходимых атрибутов из klogic.xml'''
-    kl_find = {}
-    kl_find['danfoss'] = tree.find('.//TasksGroup1/Protocol/Settings/Name')
-    kl_find['gm'] = tree.find('.//TasksGroup1/Protocol/Module/Settings/Name')
-    kl_find['Groups'] = tree.find('.//TasksGroup1/Protocol/Module')
-    kl_find['fsection'] = tree.find('.//UserTask')
-    kl_find['task_name'] = tree.find('.//UserTask/Settings/Name')
-    kl_find['te'] = tree.find('.//TasksGroup0/UserTask/Settings')
-    kl_find['klogic_name'] = tree.find('.//Controller/Settings/Name')
-    kl_find['syst_num'] = tree.find('.//Controller/Settings/SystNum')
+    kl_find = KlogicAttrs(
+        danfoss=tree.find('.//TasksGroup1/Protocol/Settings/Name'),
+        gm=tree.find('.//TasksGroup1/Protocol/Module/Settings/Name'),
+        Groups=tree.find('.//TasksGroup1/Protocol/Module'),
+        fsection=tree.find('.//UserTask'),
+        task_name=tree.find('.//UserTask/Settings/Name'),
+        te=tree.find('.//TasksGroup0/UserTask/Settings'),
+        klogic_name=tree.find('.//Controller/Settings/Name'),
+        syst_num=tree.find('.//Controller/Settings/SystNum')
+    )
     return kl_find
 
 
@@ -178,12 +194,12 @@ def shift(module: Element, gmget: str):
 def noffl(tree: ET_class):
     '''Привязка входов к функциональном блокам noffl'''
     kl_find = klogic_tree_find(tree)
-    danfoss = kl_find['danfoss']
-    gm = kl_find['gm']
-    Groups = kl_find['Groups']
-    fsection = kl_find['fsection']
+    danfoss = kl_find.danfoss
+    gm = kl_find.gm
+    Groups = kl_find.Groups
+    fsection = kl_find.fsection
     teall = '&lt;?xml version=&quot;1.0&quot; encoding=&quot;windows-1251&quot;?&gt;&lt;Elements&gt;&lt;Controls&gt;'
-    task_name = kl_find['task_name']
+    task_name = kl_find.task_name
 
     noffl_tags = GoodTags.get_noffl_tags()
     num_of_inputs = 10   #Количество входов в каждом Функциональном блоке noffl
@@ -266,11 +282,13 @@ def noffl(tree: ET_class):
 
     ''' Вставка строки <TaskElements> '''
     teall = teall + '&lt;/Controls&gt;&lt;/Elements&gt;'
-    te = kl_find['te']
-    te.remove(te[7])
-    TaskElements = ElementTree.Element("TaskElements")
-    TaskElements.text = teall
-    te.insert(7, TaskElements)
+    te = kl_find.te
+    for child in range(len(te)):
+        if te[child].tag == 'TaskElements':
+            te.remove(te[child])
+            TaskElements = ElementTree.Element("TaskElements")
+            TaskElements.text = teall
+            te.insert(child, TaskElements)
 
     ''' Вставка количества контроллеров в ФБ smart divide'''
     print('Общее количество контроллеров:', ((num_of_fb - 1) * 10) + connected_inputs, 'u=', connected_inputs)
@@ -308,10 +326,10 @@ def bdtp(gmget, tree, Module, klogger_xml, klogger_tree):
         pass
 
     kl_find = klogic_tree_find(tree)
-    klogic_name = kl_find['klogic_name']
-    danfoss = kl_find['danfoss']
-    gm = kl_find['gm']
-    syst_num = kl_find['syst_num']
+    klogic_name = kl_find.klogic_name
+    danfoss = kl_find.danfoss
+    gm = kl_find.gm
+    syst_num = kl_find.syst_num
     bdtpTags = GoodTags.get_bdtp_tags()
     Gr = ElementTree.Element("Groups")
     klogger_root.insert(37, Gr)
@@ -411,7 +429,7 @@ def cutout(contr):
     try:
         type = name.split('_')[0]
         product = name.split('_')[1]
-        if type == 'Б' or type == 'НК':
+        if type == 'Б' or type == 'НК' or type == 'БШ':
             cutout = '-20'
         else:
             for pr in products:
@@ -422,7 +440,7 @@ def cutout(contr):
                     if type == 'СК':
                         cutout = '0'
                     else:
-                        if type == 'Ц':
+                        if type == 'Ц' or type == 'Цех':
                             cutout = '12'
                         else:
                             cutout = check_cutout(products, product)
@@ -439,10 +457,10 @@ def cutout(contr):
 def alarm_insert(attr):
     '''Вставка строк в alarms.xml с учетом подготовленных аттрибутов'''
     kl_find = klogic_tree_find(attr['tree'])
-    klogic_name = kl_find['klogic_name']
-    danfoss = kl_find['danfoss']
-    gm = kl_find['gm']
-    syst_num = kl_find['syst_num']
+    klogic_name = kl_find.klogic_name
+    danfoss = kl_find.danfoss
+    gm = kl_find.gm
+    syst_num = kl_find.syst_num
     station = klogic.objects.get(gm=attr['gmget']).station_id
     contr = str(attr['Module'][attr['Group']].attrib['Name'])
     tag_name = attr['InOut'].attrib['Name']
@@ -658,7 +676,12 @@ def index(request):
             xml_path = klogic.objects.get(gm=gmget).xml.path
             bdtp_checkbox = request.POST.get('bd')
             alarm_checkbox = request.POST.get('alarm')
-            h_remove(xml_path)
+            modify_file(
+                source=read_file(xml_path, 'cp1251'),
+                encoding='cp1251',
+                modify_func=h_remove,
+                save_to=xml_path
+            )
             tree = ElementTree.parse(xml_path)
             Module = tree.find('.//Module')
             try:
