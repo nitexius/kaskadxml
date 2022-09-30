@@ -225,7 +225,8 @@ def noffl(tree: ET_class):
                 for fb_input in range(len(fsection[fb]))[3:]:           #3 входа ФБ не используются на этом этапе
                     if (fb_input + num_of_inputs * h) < len(Groups):   #проверка, чтобы текущий номер входа ФБ не превышал кол-во контроллеров
                         if (fb_input + 1) == len(fsection[fb]):         #последний вход ФБ
-                            next
+                            continue
+                            #next
                         else:
                             inout = Groups[fb_input + num_of_inputs * h]
                             contr = inout.attrib['Name']
@@ -282,12 +283,14 @@ def noffl(tree: ET_class):
                     InitValue0.text = '%.2f' % 0
                 N_input.insert(3, InitValue0)
 
-            else:
-                next
+            # else:
+            #     continue
+            #     # next
             if fblock.text == 'smart divide':
                 smart_divide = fb                               #Номер ФБ smart divide
-            else:
-                next
+            # else:
+            #     continue
+            #     # next
 
     ''' Вставка строки <TaskElements> '''
     teall = teall + '&lt;/Controls&gt;&lt;/Elements&gt;'
@@ -436,9 +439,9 @@ def cutout(contr):
     products = Cutout.get_products_name()
     name = contr.split('__')[0]
     try:
-        type = name.split('_')[0]
+        xo_type = name.split('_')[0]
         product = name.split('_')[1]
-        if type == 'Б' or type == 'НК' or type == 'БШ':
+        if xo_type == 'Б' or xo_type == 'НК' or xo_type == 'БШ':
             cutout = '-20'
         else:
             for pr in products:
@@ -446,20 +449,20 @@ def cutout(contr):
                     cutout = pr.cutout
                     break
                 else:
-                    if type == 'СК':
+                    if xo_type == 'СК':
                         cutout = '0'
                     else:
-                        if type == 'Ц' or type == 'Цех':
+                        if xo_type == 'Ц' or xo_type == 'Цех':
                             cutout = '12'
                         else:
                             cutout = check_cutout(products, product)
-        result = {'cutout': cutout, 'type': type}
+        result = {'cutout': cutout, 'type': xo_type}
     except IndexError:
         if name == 'Серверная':
-            type == name
+            xo_type == name
         else:
-            type == 'None'
-        result = {'cutout': check_cutout(products, name), 'type': type}
+            xo_type == 'None'
+        result = {'cutout': check_cutout(products, name), 'type': xo_type}
     return result
 
 
@@ -539,13 +542,15 @@ def alarm_insert(attr):
     for child in GroupItem:
         if child[1].text == 'Авария всех компрессоров':
             if child[2].tag == 'Alarms' or child[2].tag == 'temp' + 'Alarms':
-                next
+                continue
+                # next
             else:
                 Alarms = ElementTree.Element('temp' + 'Alarms')
                 child.insert(2, Alarms)
         if child[1].text == tag_alarm:
             if child[2].tag == 'Alarms' or child[2].tag == str(tag_str) + 'Alarms':
-                next
+                continue
+                # next
             else:
                 Alarms = ElementTree.Element(str(tag_str) + 'Alarms')
                 child.insert(2, Alarms)
