@@ -31,6 +31,14 @@ class KlogicXML:
                     if h in inout.attrib['Name']:
                         inout.attrib['Name'] = inout.attrib['Name'].replace(h, '')
 
+    def get_tags(self):
+        exist_tags = set()
+        for tag in GoodTags.get_GoodTagsall():
+            exist_tags.add(tag.Name)
+        for tag in BadTags.get_BadTagsall():
+            exist_tags.add(tag.Name)
+        return exist_tags
+
     def get_tags_ids(self):
         '''Получение всех id из GoodTags, BadTags, NewTags'''
         exist_ids = set()
@@ -46,12 +54,11 @@ class KlogicXML:
             id += 1
         return id
 
-    def save_new_tag(self):
+    def save_new_tag(self, exist_tags: set):
         '''Сохранение нового параметра в модели NewTags'''
         if not any([
             NewTags.is_exist_tag(self.new_tag_attrs.tag_name),
-            GoodTags.is_exist_tag(self.new_tag_attrs.tag_name),
-            BadTags.is_exist_tag(self.new_tag_attrs.tag_name)
+            self.new_tag_attrs.tag_name in exist_tags
         ]):
             print('Новый параметр:', self.new_tag_attrs.controller, self.new_tag_attrs.tag_name)
             new_id = self.generate_id()
@@ -61,6 +68,7 @@ class KlogicXML:
     def new_tags(self) -> int:
         '''Проверка на новые переменные'''
         NewTags.delete_NewTagsall()
+        exist_tags = self.get_tags()
         self.new_tag_attrs = NewTagAttrs(
             controller='',
             tag_name='')
@@ -74,13 +82,13 @@ class KlogicXML:
                             try:
                                 if tag[alarm_tag].attrib['Name'].split(str(alarm_tag) + "_")[1] != 'Not used':
                                     self.new_tag_attrs.tag_name = tag[alarm_tag].attrib['Name'].split(str(alarm_tag) + "_")[1]
-                                    self.save_new_tag()
+                                    self.save_new_tag(exist_tags)
                             except IndexError:
                                 cental_alarms_flag = True
                                 break
                     else:
                         self.new_tag_attrs.tag_name = tag.attrib['Name']
-                        self.save_new_tag()
+                        self.save_new_tag(exist_tags)
             else:
                 break
         if not cental_alarms_flag:
