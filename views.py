@@ -39,6 +39,15 @@ def h_remove(file: str) -> str:
      return replace_attrs(file, history_attr.get_h_attrs(), "")
 
 
+def h_remove_ET(module: Element, attrs: Iterable):
+    '''удлаение служебных символов в названии параметра (исп. ElementTree)'''
+    for Group in module[3:]:
+        for InOut in Group[1:]:
+            for h in attrs:
+                if h in InOut.attrib['Name']:
+                    InOut.attrib['Name'] = InOut.attrib['Name'].replace(h, '')
+
+
 def generate_id(attrs: NewTagAttrs) -> int:
     '''Получение нового id, которого нет в моделях GoodTags, BadTags'''
     id = 1
@@ -50,10 +59,10 @@ def generate_id(attrs: NewTagAttrs) -> int:
 def save_new_tag(attrs: NewTagAttrs) -> NewTagAttrs:
     '''Добавление нового параметра в список новых параметров'''
     attrs.new_tag = False
-    if all([
-        not attrs.tag_name in attrs.new_tags,
-        not GoodTags.is_exist_tag(attrs.tag_name),
-        not BadTags.is_exist_tag(attrs.tag_name)
+    if not any([
+        attrs.tag_name in attrs.new_tags,
+        GoodTags.is_exist_tag(attrs.tag_name),
+        BadTags.is_exist_tag(attrs.tag_name)
     ]):
         print(len(attrs.new_tags), 'Новый параметр:', attrs.controller, attrs.tag_name)
         attrs.id = generate_id(attrs)
@@ -676,14 +685,15 @@ def index(request):
             xml_path = klogic.objects.get(gm=gmget).xml.path
             bdtp_checkbox = request.POST.get('bd')
             alarm_checkbox = request.POST.get('alarm')
-            modify_file(
-                source=read_file(xml_path, 'cp1251'),
-                encoding='cp1251',
-                modify_func=h_remove,
-                save_to=xml_path
-            )
+            # modify_file(
+            #     source=read_file(xml_path, 'cp1251'),
+            #     encoding='cp1251',
+            #     modify_func=h_remove,
+            #     save_to=xml_path
+            # )
             tree = ElementTree.parse(xml_path)
             Module = tree.find('.//Module')
+            h_remove_ET(Module, history_attr.get_h_attrs())
             try:
                 print(Module.tag)
                 bad_tags = BadTags.get_BadTagsall()
