@@ -6,13 +6,8 @@ from .alrm import alrm, stations
 
 @dataclass
 class NewTagAttrs:
-    new_tags: list
-    all_id: set
-    exist_ids: set
     controller: str
     tag_name: str
-    new_tag: bool
-    id: int
 
 
 @dataclass
@@ -210,6 +205,18 @@ class NewTags(models.Model):
     def delete_NewTagsall(cls):
         NewTag = NewTags.objects.all()
         NewTag.delete()
+
+    def get_NewTagsall(cls):
+        NewTag = NewTags.objects.all()
+        return NewTag
+
+    @classmethod
+    def is_exist_tag(cls, tag_name: str):
+        return NewTags.objects.filter(Name=tag_name).exists()
+
+    @classmethod
+    def get_all_id(cls):
+        return set(NewTags.objects.values_list('id', flat=True))
 
     def __str__(self):
         return self.Name
