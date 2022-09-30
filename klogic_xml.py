@@ -11,17 +11,10 @@ class KlogicXML:
     def __new__(cls, *args, **kwargs):
         return super().__new__(cls)
 
-    def __int__(self, xml_path: pathlib.Path):
+    def __init__(self, xml_path: pathlib.Path):
         self.xml_path = xml_path
-        self.parsed_xml = None
-
-    def parse(self):
         self.parsed_xml = ElementTree.parse(self.xml_path)
-        return self.parsed_xml
-
-    def find_Module(self):
         self.module = self.parsed_xml.find('.//Module')
-        return self.module
 
     def h_remove(self, attrs: Iterable):
         '''удлаение служебных символов в названии параметра'''
