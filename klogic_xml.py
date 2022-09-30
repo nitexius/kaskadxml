@@ -24,7 +24,7 @@ class KlogicXML:
                     if h in inout.attrib['Name']:
                         inout.attrib['Name'] = inout.attrib['Name'].replace(h, '')
 
-    def get_tags(self):
+    def get_tags(self) -> set:
         exist_tags = set()
         for tag in GoodTags.get_GoodTagsall():
             exist_tags.add(tag.Name)
@@ -32,7 +32,7 @@ class KlogicXML:
             exist_tags.add(tag.Name)
         return exist_tags
 
-    def get_tags_ids(self):
+    def get_tags_ids(self) -> set:
         '''Получение всех id из GoodTags, BadTags, NewTags'''
         exist_ids = set()
         for id in GoodTags.get_all_id() | BadTags.get_all_id() | NewTags.get_all_id():
