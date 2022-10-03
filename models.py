@@ -1,30 +1,5 @@
 from django.db import models
-from dataclasses import dataclass
-from xml.etree.ElementTree import Element
 from .alrm import alrm, stations
-
-
-@dataclass
-class NewTagAttrs:
-    tag_id: int
-    controller: str
-    tag_name: str
-
-@dataclass
-class ShiftAttrs:
-    all_attrs: list
-    all_lens: set
-
-@dataclass
-class KlogicAttrs:
-    danfoss: Element
-    gm: Element
-    Groups: Element
-    fsection: Element
-    task_name: Element
-    te: Element
-    klogic_name: Element
-    syst_num: Element
 
 
 class klogic(models.Model):

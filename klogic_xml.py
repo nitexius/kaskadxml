@@ -1,10 +1,31 @@
 import pathlib
 from typing import Iterable
 from xml.etree import ElementTree
-#from django.core.exceptions import ObjectDoesNotExist
+from xml.etree.ElementTree import Element
+from dataclasses import dataclass
 from django.db.models.query import QuerySet
-from .models import KlogicAttrs, ShiftAttrs, NewTagAttrs
 
+@dataclass
+class NewTagAttrs:
+    tag_id: int
+    controller: str
+    tag_name: str
+
+@dataclass
+class ShiftAttrs:
+    all_attrs: list
+    all_lens: set
+
+@dataclass
+class KlogicAttrs:
+    danfoss: Element
+    gm: Element
+    Groups: Element
+    fsection: Element
+    task_name: Element
+    te: Element
+    klogic_name: Element
+    syst_num: Element
 
 class KlogicXML:
     ''' Класс для  KlogicXML'''

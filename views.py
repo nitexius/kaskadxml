@@ -1,11 +1,11 @@
 import shutil, pathlib
 from django.shortcuts import render
-#from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import ObjectDoesNotExist
 from django.db.models.query import QuerySet
 from typing import Iterable
 from xml.etree import ElementTree
 from xml.etree.ElementTree import ElementTree as ET_class
-from .models import history_attr, GoodTags, BadTags, klogic, klogger, alarms, Cutout, NewTags, Shift, ShiftAttrs
+from .models import history_attr, GoodTags, BadTags, klogic, klogger, alarms, Cutout, NewTags, Shift
 from .forms import KlogicForm
 from .alrm import alrm, stations
 from .klogic_xml import KlogicXML
