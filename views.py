@@ -1,6 +1,5 @@
 import shutil, pathlib
 from django.shortcuts import render
-from django.core.exceptions import ObjectDoesNotExist
 from django.db.models.query import QuerySet
 from typing import Iterable
 from xml.etree import ElementTree
@@ -33,7 +32,7 @@ def shift_create(klogic_xml: KlogicXML, gmget: str):
     try:
         old_shift = Shift.objects.get(gm=gmget)
         old_shift.delete()
-    except ObjectDoesNotExist:
+    except Shift.DoesNotExist:
         pass
     shift_attr = klogic_xml.shift()
     Shift.objects.create(gm=gmget, txt="media/shift/" + str(gmget) + ".txt")
@@ -74,7 +73,7 @@ def index(request):
                 new_tags = klogic_xml.new_tags(get_tags(), get_tags_ids())
             except AttributeError:
                 context['text_kl'] = "Klogic XML: Неправильный формат"
-        except (ObjectDoesNotExist, FileNotFoundError):
+        except (klogic.DoesNotExist, FileNotFoundError):
             context['text_kl'] = "Klogic XML не найден"
 
         if len(new_tags) > 0:
