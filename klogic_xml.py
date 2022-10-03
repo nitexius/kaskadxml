@@ -3,7 +3,7 @@ from typing import Iterable
 from xml.etree import ElementTree
 #from django.core.exceptions import ObjectDoesNotExist
 from django.db.models.query import QuerySet
-from .models import NewTags, KlogicAttrs, ShiftAttrs, NewTagAttrs
+from .models import KlogicAttrs, ShiftAttrs, NewTagAttrs
 
 
 class KlogicXML:
