@@ -1,8 +1,9 @@
 import pathlib
 from typing import Iterable
 from xml.etree import ElementTree
-from django.core.exceptions import ObjectDoesNotExist
-from .models import GoodTags, BadTags, NewTags, Shift, NewTagAttrs, KlogicAttrs
+#from django.core.exceptions import ObjectDoesNotExist
+from django.db.models.query import QuerySet
+from .models import NewTags, KlogicAttrs, ShiftAttrs, NewTagAttrs
 
 
 class KlogicXML:
@@ -24,75 +25,75 @@ class KlogicXML:
                     if h in inout.attrib['Name']:
                         inout.attrib['Name'] = inout.attrib['Name'].replace(h, '')
 
-    def get_tags(self) -> set:
-        exist_tags = set()
-        for tag in GoodTags.get_GoodTagsall():
-            exist_tags.add(tag.Name)
-        for tag in BadTags.get_BadTagsall():
-            exist_tags.add(tag.Name)
-        return exist_tags
-
-    def get_tags_ids(self) -> set:
-        '''Получение всех id из GoodTags, BadTags, NewTags'''
-        exist_ids = set()
-        for id in GoodTags.get_all_id() | BadTags.get_all_id() | NewTags.get_all_id():
-            exist_ids.add(id)
-        return exist_ids
-
-    def generate_id(self) -> int:
+    def generate_id(self, exist_ids: set):
         '''Получение нового id'''
         id = 1
-        all_id = self.get_tags_ids()
-        while id in all_id:
+        while any([
+            id in exist_ids,
+            id in self.new_ids
+        ]):
             id += 1
         return id
 
-    def save_new_tag(self, exist_tags: set):
-        '''Сохранение нового параметра в модели NewTags'''
+    def check_new_tag(self, exist_tags: set) -> bool:
+        '''Проверка нового параметра'''
+        result = False
         if not any([
-            NewTags.is_exist_tag(self.new_tag_attrs.tag_name),
-            self.new_tag_attrs.tag_name in exist_tags
+            self.new_tag_name in self.new_tag_names,
+            self.new_tag_name in exist_tags
         ]):
-            print('Новый параметр:', self.new_tag_attrs.controller, self.new_tag_attrs.tag_name)
-            new_id = self.generate_id()
-            new_tag = NewTags(id=new_id, Name=self.new_tag_attrs.tag_name, Controller=self.new_tag_attrs.controller)
-            new_tag.save()
+            result = True
+        return result
 
-    def new_tags(self) -> int:
+    def get_new_tag_attr(self, exist_ids: set):
+        generated_id = self.generate_id(exist_ids)
+        print('Новый параметр:', generated_id, self.new_tag_controller, self.new_tag_name)
+        self.new_tag_attr = NewTagAttrs(
+            tag_id=generated_id,
+            controller=self.new_tag_controller,
+            tag_name=self.new_tag_name
+        )
+
+    def new_tags(self, exist_tags: set, exist_ids: set):
         '''Проверка на новые переменные'''
-        NewTags.delete_NewTagsall()
-        exist_tags = self.get_tags()
-        self.new_tag_attrs = NewTagAttrs(
-            controller='',
-            tag_name='')
+        all_new_tags = []
+        self.new_tag_names = []
+        self.new_ids = []
         cental_alarms_flag = False
         for Group in range(len(self.module))[3:]:
             if not cental_alarms_flag:
-                self.new_tag_attrs.controller = self.module[Group].attrib['Name']
+                self.new_tag_controller = self.module[Group].attrib['Name']
                 for tag in self.module[Group][1:]:
                     if tag.attrib['Name'] == 'Alarms' and len(tag) > 35:
                         for alarm_tag in range(len(tag))[1:]:
                             try:
                                 if tag[alarm_tag].attrib['Name'].split(str(alarm_tag) + "_")[1] != 'Not used':
-                                    self.new_tag_attrs.tag_name = tag[alarm_tag].attrib['Name'].split(str(alarm_tag) + "_")[1]
-                                    self.save_new_tag(exist_tags)
+                                    self.new_tag_name = tag[alarm_tag].attrib['Name'].split(str(alarm_tag) + "_")[1]
+                                    if self.check_new_tag(exist_tags):
+                                        self.get_new_tag_attr(exist_ids)
+                                        all_new_tags.append(self.new_tag_attr)
+                                        self.new_tag_names.append(self.new_tag_name)
+                                        self.new_ids.append(self.new_tag_attr.tag_id)
                             except IndexError:
                                 cental_alarms_flag = True
                                 break
                     else:
-                        self.new_tag_attrs.tag_name = tag.attrib['Name']
-                        self.save_new_tag(exist_tags)
+                        self.new_tag_name = tag.attrib['Name']
+                        if self.check_new_tag(exist_tags):
+                            self.get_new_tag_attr(exist_ids)
+                            all_new_tags.append(self.new_tag_attr)
+                            self.new_tag_names.append(self.new_tag_name)
+                            self.new_ids.append(self.new_tag_attr.tag_id)
             else:
                 break
         if not cental_alarms_flag:
-            result = len(NewTags.get_all_id())
+            result = all_new_tags
         else:
             result = -1
         return result
 
-    def delete_tags(self):
+    def delete_tags(self, bad_tags: QuerySet):
         '''Удаление ненужных переменных, пустых групп'''
-        bad_tags = BadTags.get_BadTagsall()
         for Group in self.module[1:]:
             if len(Group) < 2:
                 print("Удалена пустая группа:", Group.attrib['Name'])
@@ -127,46 +128,26 @@ class KlogicXML:
         )
         return kl_find
 
-    def shift(self, gmget: str):
+    def shift(self) -> ShiftAttrs:
         '''Подсчет смещения адресов контроллеров'''
-        try:
-            old_shift = Shift.objects.get(gm=gmget)
-            old_shift.delete()
-        except ObjectDoesNotExist:
-            pass
-
-        all_attrs = []
-        all_lens = set()
+        shift_attr = ShiftAttrs(
+            all_attrs=[],
+            all_lens=set()
+        )
         for Group in range(len(self.module))[1:]:
             contr_attr = []
             if self.module[Group].attrib['Name'] != 'Служебные теги' and self.module[Group].attrib['Name'] != 'Дата и время':
                 contr_attr.append(self.module[Group].attrib['Name'])
                 contr_attr.append(len(self.module[Group]))
-                all_lens.add(len(self.module[Group]))
+                shift_attr.all_lens.add(len(self.module[Group]))
                 for settings in self.module[Group][1][0]:
                     if settings.tag == 'KId':
                         contr_attr.append(self.module[Group][1].attrib['Name'])
                         contr_attr.append(settings.text)
-                all_attrs.append(contr_attr)
+                shift_attr.all_attrs.append(contr_attr)
+        return shift_attr
 
-        Shift.objects.create(gm=gmget, txt="media/shift/" + str(gmget) + ".txt")
-        txt = Shift.objects.get(gm=gmget).txt.path
-        file = open(str(txt), "w+")
-        for l in all_lens:
-            address = 0
-            for a in range(len(all_attrs)):
-                if all_attrs[a][1] == l:
-                    if address == 0:
-                        current_shift = 0
-                        address = float(all_attrs[a][3])
-                    else:
-                        current_shift = float(all_attrs[a][3]) - address
-                        address = float(all_attrs[a][3])
-                    file.write(('Кол-во переменных = ' + str(l) + '. ' +
-                                str(all_attrs[a][0]) + '. Смещение = ' + str(current_shift) + '\n'))
-        file.close()
-
-    def noffl(self):
+    def noffl(self, noffl_tags: QuerySet):
         '''Привязка входов к функциональном блокам noffl'''
         kl_find = self.klogic_tree_find()
         danfoss = kl_find.danfoss
@@ -176,7 +157,6 @@ class KlogicXML:
         teall = '&lt;?xml version=&quot;1.0&quot; encoding=&quot;windows-1251&quot;?&gt;&lt;Elements&gt;&lt;Controls&gt;'
         task_name = kl_find.task_name
 
-        noffl_tags = GoodTags.get_noffl_tags()
         num_of_inputs = 10  # Количество входов в каждом Функциональном блоке noffl
         strs = []  # Список со строками, содержащими путь к переменным в xml
         tag_settings = []  # Список, содержащий данные для заполнения в группе Connected функц.блока noffl

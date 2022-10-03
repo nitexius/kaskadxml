@@ -6,9 +6,14 @@ from .alrm import alrm, stations
 
 @dataclass
 class NewTagAttrs:
+    tag_id: int
     controller: str
     tag_name: str
 
+@dataclass
+class ShiftAttrs:
+    all_attrs: list
+    all_lens: set
 
 @dataclass
 class KlogicAttrs:
