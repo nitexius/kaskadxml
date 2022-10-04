@@ -1,4 +1,5 @@
 import shutil, pathlib
+from pathlib import Path
 from django.shortcuts import render
 from django.db.models.query import QuerySet
 from typing import Iterable
@@ -10,47 +11,38 @@ from .alrm import alrm, stations
 from .klogic_xml import KlogicXML
 
 
-def get_tags() -> set:
-    exist_tags = set()
-    for tag in GoodTags.get_GoodTagsall():
-        exist_tags.add(tag.Name)
-    for tag in BadTags.get_BadTagsall():
-        exist_tags.add(tag.Name)
+def get_tags() -> Iterable:
+    exist_tags = []
+    for tag in GoodTags.get_GoodTags_values():
+        exist_tags.append(tag)
+    for tag in BadTags.get_BadTags_values():
+        tag['alarm_id'] = 'None'
+        tag['bdtp'] = False
+        tag['noffl'] = False
+        exist_tags.append(tag)
     return exist_tags
-
-
-def get_tags_ids() -> set:
-    '''Получение всех id из GoodTags, BadTags, NewTags'''
-    exist_ids = set()
-    for id in GoodTags.get_all_id() | BadTags.get_all_id():
-        exist_ids.add(id)
-    return exist_ids
 
 
 def shift_create(klogic_xml: KlogicXML, gmget: str):
     '''Подсчет смещения адресов контроллеров'''
-    try:
-        old_shift = Shift.objects.get(gm=gmget)
-        old_shift.delete()
-    except Shift.DoesNotExist:
-        pass
+    ATTR_NAME_INDEX = 0
+    ATTR_LEN_INDEX = 1
+    ATTR_ADR_INDEX = 3
+
+    if Shift.objects.filter(gm=gmget).exists():
+        Shift.objects.filter(gm=gmget).delete()
+
     shift_attr = klogic_xml.shift()
-    Shift.objects.create(gm=gmget, txt="media/shift/" + str(gmget) + ".txt")
-    txt = Shift.objects.get(gm=gmget).txt.path
-    file = open(str(txt), "w+")
-    for l in shift_attr.all_lens:
-        address = 0
-        for a in range(len(shift_attr.all_attrs)):
-            if shift_attr.all_attrs[a][1] == l:
-                if address == 0:
-                    current_shift = 0
-                    address = float(shift_attr.all_attrs[a][3])
-                else:
-                    current_shift = float(shift_attr.all_attrs[a][3]) - address
-                    address = float(shift_attr.all_attrs[a][3])
-                file.write(('Кол-во переменных = ' + str(l) + '. ' +
-                            str(shift_attr.all_attrs[a][0]) + '. Смещение = ' + str(current_shift) + '\n'))
-    file.close()
+    Shift(gm=gmget, txt=f"media/shift/{gmget}.txt").save()
+    txt = Shift.objects.get(gm=gmget).txt
+    with open(txt.path, "w+") as file:
+        for l in shift_attr.all_lens:
+            for i, _ in enumerate(shift_attr.all_attrs):
+                if shift_attr.all_attrs[i][ATTR_LEN_INDEX] != l:
+                    continue
+                current_shift = float(shift_attr.all_attrs[i][ATTR_ADR_INDEX]) - float(
+                    shift_attr.all_attrs[i - 1][ATTR_ADR_INDEX]) if i else i
+                file.write((f'Кол-во переменных = {l}. {shift_attr.all_attrs[i][ATTR_NAME_INDEX]}. Смещение = {current_shift} \n'))
 
 
 def index(request):
@@ -70,13 +62,13 @@ def index(request):
             try:
                 print(klogic_xml.module.tag)
                 NewTags.delete_NewTagsall()
-                new_tags = klogic_xml.new_tags(get_tags(), get_tags_ids())
+                new_tags = klogic_xml.new_tags(get_tags())
             except AttributeError:
                 context['text_kl'] = "Klogic XML: Неправильный формат"
         except (klogic.DoesNotExist, FileNotFoundError):
             context['text_kl'] = "Klogic XML не найден"
 
-        if len(new_tags) > 0:
+        if len(new_tags):
             for tag in new_tags:
                 new_tag = NewTags(id=tag.tag_id, Name=tag.tag_name, Controller=tag.controller)
                 new_tag.save()
@@ -86,10 +78,10 @@ def index(request):
             if new_tags == -1:
                 context['text'] = "В группе Alarms у централи добавлены не все переменные"
             else:
-                klogic_xml.delete_tags(BadTags.get_BadTagsall())
+                klogic_xml.delete_tags(BadTags.get_BadTags_values())
                 klogic_xml.add_comment()
-                klogic_xml.noffl(GoodTags.get_noffl_tags())
-                klogic_xml.write()
+                klogic_xml.noffl(GoodTags.get_GoodTags_values())
+                klogic_xml.write('')
                 shift_create(klogic_xml, gmget)
                 #klogic_xml.shift(gmget)
                 # if bdtp_checkbox:

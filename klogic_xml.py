@@ -3,7 +3,6 @@ from typing import Iterable
 from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
 from dataclasses import dataclass
-from django.db.models.query import QuerySet
 
 @dataclass
 class NewTagAttrs:
@@ -27,6 +26,18 @@ class KlogicAttrs:
     klogic_name: Element
     syst_num: Element
 
+class Tag:
+    ''' Класс для параметра'''
+    def __new__(cls, *args, **kwargs):
+        return super().__new__(cls)
+
+    def __init__(self, tag_name: str, controller: str):
+        self.tag_attr = NewTagAttrs(
+            tag_id=0,
+            controller=controller,
+            tag_name=tag_name
+        )
+
 class KlogicXML:
     ''' Класс для  KlogicXML'''
 
@@ -37,6 +48,8 @@ class KlogicXML:
         self.xml_path = xml_path
         self.parsed_xml = ElementTree.parse(self.xml_path)
         self.module = self.parsed_xml.find('.//Module')
+        self.new_tag_names = []
+        self.new_ids = []
 
     def h_remove(self, attrs: Iterable):
         '''удлаение служебных символов в названии параметра'''
@@ -46,74 +59,77 @@ class KlogicXML:
                     if h in inout.attrib['Name']:
                         inout.attrib['Name'] = inout.attrib['Name'].replace(h, '')
 
-    def generate_id(self, exist_ids: set):
+    def generate_id(self, exist_tag_ids: Iterable) -> int:
         '''Получение нового id'''
         id = 1
         while any([
-            id in exist_ids,
+            id in exist_tag_ids,
             id in self.new_ids
         ]):
             id += 1
         return id
 
-    def check_new_tag(self, exist_tags: set) -> bool:
+    def check_new_tag(self, exist_tag_names: Iterable, new_tag: Tag) -> bool:
         '''Проверка нового параметра'''
         result = False
         if not any([
-            self.new_tag_name in self.new_tag_names,
-            self.new_tag_name in exist_tags
+            new_tag.tag_attr.tag_name in self.new_tag_names,
+            new_tag.tag_attr.tag_name in exist_tag_names
         ]):
             result = True
         return result
 
-    def get_new_tag_attr(self, exist_ids: set):
-        generated_id = self.generate_id(exist_ids)
-        print('Новый параметр:', generated_id, self.new_tag_controller, self.new_tag_name)
-        self.new_tag_attr = NewTagAttrs(
-            tag_id=generated_id,
-            controller=self.new_tag_controller,
-            tag_name=self.new_tag_name
-        )
-
-    def new_tags(self, exist_tags: set, exist_ids: set):
+    def new_tags(self, exist_tags: Iterable):
         '''Проверка на новые переменные'''
-        all_new_tags = []
-        self.new_tag_names = []
-        self.new_ids = []
+        exist_tag_names = []
+        exist_tag_ids = []
+        for tag in exist_tags:
+            exist_tag_names.append(tag['Name'])
+            exist_tag_ids.append(tag['id'])
+        all_new_tags_attrs = []
         cental_alarms_flag = False
         for Group in range(len(self.module))[3:]:
             if not cental_alarms_flag:
-                self.new_tag_controller = self.module[Group].attrib['Name']
                 for tag in self.module[Group][1:]:
                     if tag.attrib['Name'] == 'Alarms' and len(tag) > 35:
                         for alarm_tag in range(len(tag))[1:]:
                             try:
                                 if tag[alarm_tag].attrib['Name'].split(str(alarm_tag) + "_")[1] != 'Not used':
-                                    self.new_tag_name = tag[alarm_tag].attrib['Name'].split(str(alarm_tag) + "_")[1]
-                                    if self.check_new_tag(exist_tags):
-                                        self.get_new_tag_attr(exist_ids)
-                                        all_new_tags.append(self.new_tag_attr)
-                                        self.new_tag_names.append(self.new_tag_name)
-                                        self.new_ids.append(self.new_tag_attr.tag_id)
+                                    new_tag = Tag(
+                                        tag[alarm_tag].attrib['Name'].split(str(alarm_tag) + "_")[1],
+                                        self.module[Group].attrib['Name']
+                                                  )
+                                    if self.check_new_tag(exist_tag_names, new_tag):
+                                        new_tag.tag_attr.tag_id = self.generate_id(exist_tag_ids)
+                                        all_new_tags_attrs.append(new_tag.tag_attr)
+                                        self.new_tag_names.append(new_tag.tag_attr.tag_name)
+                                        self.new_ids.append(new_tag.tag_attr.tag_id)
+                                        print('Новый параметр:', new_tag.tag_attr.tag_id, new_tag.tag_attr.controller,
+                                              new_tag.tag_attr.tag_name)
                             except IndexError:
                                 cental_alarms_flag = True
                                 break
                     else:
-                        self.new_tag_name = tag.attrib['Name']
-                        if self.check_new_tag(exist_tags):
-                            self.get_new_tag_attr(exist_ids)
-                            all_new_tags.append(self.new_tag_attr)
-                            self.new_tag_names.append(self.new_tag_name)
-                            self.new_ids.append(self.new_tag_attr.tag_id)
+                        new_tag = Tag(
+                            tag.attrib['Name'],
+                            self.module[Group].attrib['Name']
+                        )
+                        if self.check_new_tag(exist_tag_names, new_tag):
+                            new_tag.tag_attr.tag_id = self.generate_id(exist_tag_ids)
+                            all_new_tags_attrs.append(new_tag.tag_attr)
+                            self.new_tag_names.append(new_tag.tag_attr.tag_name)
+                            self.new_ids.append(new_tag.tag_attr.tag_id)
+                            print('Новый параметр:', new_tag.tag_attr.tag_id, new_tag.tag_attr.controller,
+                                  new_tag.tag_attr.tag_name)
             else:
                 break
         if not cental_alarms_flag:
-            result = all_new_tags
+            result = all_new_tags_attrs
         else:
             result = -1
         return result
 
-    def delete_tags(self, bad_tags: QuerySet):
+    def delete_tags(self, bad_tags: Iterable):
         '''Удаление ненужных переменных, пустых групп'''
         for Group in self.module[1:]:
             if len(Group) < 2:
@@ -121,7 +137,7 @@ class KlogicXML:
                 self.module.remove(Group)
             for tag in bad_tags:
                 for InOut in Group[1:]:
-                    if InOut.attrib['Name'] == str(tag):
+                    if InOut.attrib['Name'] == tag['Name']:
                         if len(InOut) < 35:
                             print(Group.attrib['Name'], InOut.attrib['Name'], len(InOut))
                             Group.remove(InOut)
@@ -168,7 +184,7 @@ class KlogicXML:
                 shift_attr.all_attrs.append(contr_attr)
         return shift_attr
 
-    def noffl(self, noffl_tags: QuerySet):
+    def noffl(self, good_tags: Iterable):
         '''Привязка входов к функциональном блокам noffl'''
         kl_find = self.klogic_tree_find()
         danfoss = kl_find.danfoss
@@ -201,14 +217,15 @@ class KlogicXML:
                                 for tag in range(len(inout))[1:]:
                                     if flag:  # проверка на тот случай, если контроллер уже добавлен в ФБ
                                         break
-                                    for noffl_tag in noffl_tags:
-                                        if inout[tag].attrib['Name'] == str(noffl_tag):
-                                            tag_setting = inout[tag][0]
-                                            tag_settings.append(tag_setting)
-                                            tag_name = inout[tag].attrib['Name']
-                                            st = f'{danfoss.text}.{gm.text}.{contr}.{tag_name}'
-                                            strs.append(st)
-                                            flag = True
+                                    for good_tag in good_tags:
+                                        if good_tag['noffl']:
+                                            if inout[tag].attrib['Name'] == good_tag['Name']:
+                                                tag_setting = inout[tag][0]
+                                                tag_settings.append(tag_setting)
+                                                tag_name = inout[tag].attrib['Name']
+                                                st = f'{danfoss.text}.{gm.text}.{contr}.{tag_name}'
+                                                strs.append(st)
+                                                flag = True
                         else:
                             break
 
@@ -276,5 +293,7 @@ class KlogicXML:
                 InitValueNAll.text = '%.2f' % nall
                 all_contr.insert(3, InitValueNAll)
 
-    def write(self):
-        self.parsed_xml.write(self.xml_path)
+    def write(self, xml_path: pathlib.Path):
+        if xml_path == '':
+            xml_path = self.xml_path
+        self.parsed_xml.write(xml_path)

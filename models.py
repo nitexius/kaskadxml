@@ -112,6 +112,11 @@ class GoodTags(models.Model):
         verbose_name_plural = 'Используемые переменные'
 
     @classmethod
+    def get_GoodTags_values(cls):
+        GoodTag = list(GoodTags.objects.all().values())
+        return GoodTag
+
+    @classmethod
     def get_GoodTagsall(cls):
         GoodTag = GoodTags.objects.all()
         return GoodTag
@@ -151,6 +156,11 @@ class BadTags(models.Model):
         ordering = ['Name']
         verbose_name = 'Удаляемая переменная'
         verbose_name_plural = 'Удаляемые переменные'
+
+    @classmethod
+    def get_BadTags_values(cls):
+        BadTag = list(BadTags.objects.all().values())
+        return BadTag
 
     @classmethod
     def get_BadTagsall(cls):
