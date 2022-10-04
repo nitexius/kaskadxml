@@ -37,11 +37,20 @@ def shift_create(klogic_xml: KlogicXML, gmget: str):
     txt = Shift.objects.get(gm=gmget).txt
     with open(txt.path, "w+") as file:
         for l in shift_attr.all_lens:
+            address = 0
             for i, _ in enumerate(shift_attr.all_attrs):
                 if shift_attr.all_attrs[i][ATTR_LEN_INDEX] != l:
                     continue
-                current_shift = float(shift_attr.all_attrs[i][ATTR_ADR_INDEX]) - float(
-                    shift_attr.all_attrs[i - 1][ATTR_ADR_INDEX]) if i else i
+
+                # current_shift = float(shift_attr.all_attrs[i][ATTR_ADR_INDEX]) - float(
+                #     shift_attr.all_attrs[i-1][ATTR_ADR_INDEX]) if i else i
+
+                if address == 0:
+                    current_shift = 0
+                    address = float(shift_attr.all_attrs[i][ATTR_ADR_INDEX])
+                else:
+                    current_shift = float(shift_attr.all_attrs[i][ATTR_ADR_INDEX]) - address
+                    address = float(shift_attr.all_attrs[i][ATTR_ADR_INDEX])
                 file.write((f'Кол-во переменных = {l}. {shift_attr.all_attrs[i][ATTR_NAME_INDEX]}. Смещение = {current_shift} \n'))
 
 
