@@ -101,25 +101,25 @@ class history_attr(models.Model):
 class GoodTags(models.Model):
     '''Используемые переменные'''
 
-    Name = models.CharField(max_length=100, verbose_name='Название переменной', unique=True)
+    name = models.CharField(max_length=100, verbose_name='Название переменной', unique=True)
     alarm_id = models.CharField(max_length=100, default='None', verbose_name='Код аварии', choices=alrm)
     bdtp = models.BooleanField(default=False, verbose_name='Архивируемая переменная')
     noffl = models.BooleanField(default=False, verbose_name='ФБ noffl')
 
     class Meta:
-        ordering = ['Name']
+        ordering = ['name']
         verbose_name = 'Используемая переменная'
         verbose_name_plural = 'Используемые переменные'
 
     @classmethod
     def get_GoodTags_values(cls):
-        GoodTag = list(GoodTags.objects.all().values())
-        return GoodTag
+        Goodtag = list(GoodTags.objects.all().values())
+        return Goodtag
 
     @classmethod
     def get_GoodTagsall(cls):
-        GoodTag = GoodTags.objects.all()
-        return GoodTag
+        Goodtag = GoodTags.objects.all()
+        return Goodtag
 
     @classmethod
     def get_all_id(cls):
@@ -145,27 +145,27 @@ class GoodTags(models.Model):
         return GoodTags.objects.filter(Name=tag_name).exists()
 
     def __str__(self):
-        return self.Name
+        return self.name
 
 
 class BadTags(models.Model):
     '''Удаляемые переменные'''
-    Name = models.CharField(max_length=100, verbose_name='Название переменной', unique=True)
+    name = models.CharField(max_length=100, verbose_name='Название переменной', unique=True)
 
     class Meta:
-        ordering = ['Name']
+        ordering = ['name']
         verbose_name = 'Удаляемая переменная'
         verbose_name_plural = 'Удаляемые переменные'
 
     @classmethod
     def get_BadTags_values(cls):
-        BadTag = list(BadTags.objects.all().values())
-        return BadTag
+        Badtag = list(BadTags.objects.all().values())
+        return Badtag
 
     @classmethod
     def get_BadTagsall(cls):
-        BadTag = BadTags.objects.all()
-        return BadTag
+        Badtag = BadTags.objects.all()
+        return Badtag
 
     @classmethod
     def get_all_id(cls):
@@ -176,12 +176,12 @@ class BadTags(models.Model):
         return BadTags.objects.filter(Name=tag_name).exists()
 
     def __str__(self):
-        return self.Name
+        return self.name
 
 
 class NewTags(models.Model):
     '''Новые переменные, отсутсвующие в GoodTags, BadTags'''
-    Name = models.CharField(max_length=100, verbose_name='Название переменной')
+    name = models.CharField(max_length=100, verbose_name='Название переменной')
     Controller = models.CharField(max_length=100, default="", verbose_name='Название контроллера')
     alarm_id = models.CharField(max_length=100, default='None', verbose_name='Код аварии', choices=alrm)
     bdtp = models.BooleanField(default=False, verbose_name='Архивируемая переменная')
@@ -193,12 +193,12 @@ class NewTags(models.Model):
 
     @classmethod
     def delete_NewTagsall(cls):
-        NewTag = NewTags.objects.all()
-        NewTag.delete()
+        Newtag = NewTags.objects.all()
+        Newtag.delete()
 
     def get_NewTagsall(cls):
-        NewTag = NewTags.objects.all()
-        return NewTag
+        Newtag = NewTags.objects.all()
+        return Newtag
 
     @classmethod
     def is_exist_tag(cls, tag_name: str):
@@ -209,4 +209,4 @@ class NewTags(models.Model):
         return set(NewTags.objects.values_list('id', flat=True))
 
     def __str__(self):
-        return self.Name
+        return self.name

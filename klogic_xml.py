@@ -1,8 +1,9 @@
 import pathlib
-from typing import Iterable
+from typing import Iterable, List
 from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
 from dataclasses import dataclass
+
 
 @dataclass
 class NewTagAttrs:
@@ -10,10 +11,12 @@ class NewTagAttrs:
     controller: str
     tag_name: str
 
+
 @dataclass
 class ShiftAttrs:
-    all_attrs: list
+    all_attrs: List[List]
     all_lens: set
+
 
 @dataclass
 class KlogicAttrs:
@@ -26,143 +29,161 @@ class KlogicAttrs:
     klogic_name: Element
     syst_num: Element
 
+
 class Tag:
     ''' Класс для параметра'''
-    def __new__(cls, *args, **kwargs):
-        return super().__new__(cls)
+    def __init__(self, new_tag_attrs: NewTagAttrs):
+        self.tag_attr = new_tag_attrs
 
-    def __init__(self, tag_name: str, controller: str):
-        self.tag_attr = NewTagAttrs(
-            tag_id=0,
-            controller=controller,
-            tag_name=tag_name
-        )
+
+def create_tag_value_list(source_tag: Iterable, attr: str):
+    for tag in source_tag:
+        yield tag[attr]
+
 
 class KlogicXML:
     ''' Класс для  KlogicXML'''
-
-    def __new__(cls, *args, **kwargs):
-        return super().__new__(cls)
-
     def __init__(self, xml_path: pathlib.Path):
         self.xml_path = xml_path
         self.parsed_xml = ElementTree.parse(self.xml_path)
-        self.module = self.parsed_xml.find('.//Module')
+        self.module = None
         self.new_tag_names = []
         self.new_ids = []
+        self.all_new_tags_attrs = []
+        self.cental_alarms_flag = False
+        self.MODULE_INDEX = 1
+        self.FIRST_TAG_INDEX = 1
+        self.FIRST_CONTR_INDEX = 3
+        self.SETTINGS_INDEX = 0
+        self.NAME_INDEX = 0
+
+    def find_danfoss_module(self):
+        '''поиск протокола danfoss xml'''
+        protocols = self.parsed_xml.findall('.//Protocol')
+        for protocol in protocols:
+            for setting in protocol[self.SETTINGS_INDEX]:
+                if all([
+                    setting.tag == 'ProtCode',
+                    setting.text == '244'
+                ]):
+                    self.module = protocol[self.MODULE_INDEX]
 
     def h_remove(self, attrs: Iterable):
         '''удлаение служебных символов в названии параметра'''
-        for group in self.module[3:]:
-            for inout in group[1:]:
+        for group in self.module[self.FIRST_CONTR_INDEX:]:
+            for tag in group[self.FIRST_TAG_INDEX:]:
                 for h in attrs:
-                    if h in inout.attrib['Name']:
-                        inout.attrib['Name'] = inout.attrib['Name'].replace(h, '')
+                    if h in tag.attrib['Name']:
+                        tag.attrib['Name'] = tag.attrib['Name'].replace(h, '')
 
-    def generate_id(self, exist_tag_ids: Iterable) -> int:
+    def generate_id(self, exist_tags: Iterable) -> int:
         '''Получение нового id'''
         id = 1
         while any([
-            id in exist_tag_ids,
+            id in create_tag_value_list(exist_tags, 'id'),
             id in self.new_ids
         ]):
             id += 1
         return id
 
-    def check_new_tag(self, exist_tag_names: Iterable, new_tag: Tag) -> bool:
+    def check_new_tag(self, exist_tags: Iterable, tag_name: str) -> bool:
         '''Проверка нового параметра'''
-        result = False
-        if not any([
-            new_tag.tag_attr.tag_name in self.new_tag_names,
-            new_tag.tag_attr.tag_name in exist_tag_names
-        ]):
-            result = True
-        return result
+        return not any([
+            tag_name in self.new_tag_names,
+            tag_name in create_tag_value_list(exist_tags, 'name')
+        ])
+
+    def get_group_tags(self, tag: Element) -> list:
+        '''получение всех переменных контроллера'''
+        ALARM_SPLIT_INDEX = 1
+        Group_tag_names = []
+        if tag.attrib['Name'] == 'Alarms' and len(tag) > 35:
+            for alarm_number in range(len(tag))[self.FIRST_TAG_INDEX:]:
+                try:
+                    Group_tag_names.append(
+                        tag[alarm_number].attrib['Name'].split(str(alarm_number) + "_")[ALARM_SPLIT_INDEX])
+                except IndexError:
+                    self.cental_alarms_flag = True
+                    break
+        else:
+            Group_tag_names.append(tag.attrib['Name'])
+        return Group_tag_names
+
+    def create_new_tag(self, exist_tags: Iterable, group: Element, tag_name: str) -> Tag:
+        '''содание нового тега'''
+        tag_attrs = NewTagAttrs(
+            tag_id=self.generate_id(exist_tags),
+            controller=group.attrib['Name'],
+            tag_name=tag_name
+        )
+        print('Новый параметр:', tag_attrs.tag_id, tag_attrs.controller, tag_attrs.tag_name)
+        return Tag(tag_attrs)
+
+    def update_new_lists(self, new_tag: Tag):
+        '''добавление информации о новом теге в соответствующие списки'''
+        self.all_new_tags_attrs.append(new_tag.tag_attr)
+        self.new_tag_names.append(new_tag.tag_attr.tag_name)
+        self.new_ids.append(new_tag.tag_attr.tag_id)
 
     def new_tags(self, exist_tags: Iterable):
         '''Проверка на новые переменные'''
-        exist_tag_names = []
-        exist_tag_ids = []
-        for tag in exist_tags:
-            exist_tag_names.append(tag['Name'])
-            exist_tag_ids.append(tag['id'])
-        all_new_tags_attrs = []
-        cental_alarms_flag = False
-        for Group in range(len(self.module))[3:]:
-            if not cental_alarms_flag:
-                for tag in self.module[Group][1:]:
-                    if tag.attrib['Name'] == 'Alarms' and len(tag) > 35:
-                        for alarm_tag in range(len(tag))[1:]:
-                            try:
-                                if tag[alarm_tag].attrib['Name'].split(str(alarm_tag) + "_")[1] != 'Not used':
-                                    new_tag = Tag(
-                                        tag[alarm_tag].attrib['Name'].split(str(alarm_tag) + "_")[1],
-                                        self.module[Group].attrib['Name']
-                                                  )
-                                    if self.check_new_tag(exist_tag_names, new_tag):
-                                        new_tag.tag_attr.tag_id = self.generate_id(exist_tag_ids)
-                                        all_new_tags_attrs.append(new_tag.tag_attr)
-                                        self.new_tag_names.append(new_tag.tag_attr.tag_name)
-                                        self.new_ids.append(new_tag.tag_attr.tag_id)
-                                        print('Новый параметр:', new_tag.tag_attr.tag_id, new_tag.tag_attr.controller,
-                                              new_tag.tag_attr.tag_name)
-                            except IndexError:
-                                cental_alarms_flag = True
-                                break
-                    else:
-                        new_tag = Tag(
-                            tag.attrib['Name'],
-                            self.module[Group].attrib['Name']
-                        )
-                        if self.check_new_tag(exist_tag_names, new_tag):
-                            new_tag.tag_attr.tag_id = self.generate_id(exist_tag_ids)
-                            all_new_tags_attrs.append(new_tag.tag_attr)
-                            self.new_tag_names.append(new_tag.tag_attr.tag_name)
-                            self.new_ids.append(new_tag.tag_attr.tag_id)
-                            print('Новый параметр:', new_tag.tag_attr.tag_id, new_tag.tag_attr.controller,
-                                  new_tag.tag_attr.tag_name)
+        self.cental_alarms_flag = False
+
+        for Group in self.module[self.FIRST_CONTR_INDEX:]:
+            if not self.cental_alarms_flag:
+                for tag in Group[self.FIRST_TAG_INDEX:]:
+                    for tag_name in self.get_group_tags(tag):
+                        if tag_name != 'Not used':
+                            if self.check_new_tag(exist_tags, tag_name):
+                                new_tag = self.create_new_tag(exist_tags, Group, tag_name)
+                                self.update_new_lists(new_tag)
             else:
                 break
-        if not cental_alarms_flag:
-            result = all_new_tags_attrs
-        else:
-            result = -1
+        result = (
+            self.all_new_tags_attrs
+            if not self.cental_alarms_flag else -1
+        )
         return result
 
     def delete_tags(self, bad_tags: Iterable):
         '''Удаление ненужных переменных, пустых групп'''
-        for Group in self.module[1:]:
+        for Group in self.module[self.FIRST_CONTR_INDEX:]:
             if len(Group) < 2:
                 print("Удалена пустая группа:", Group.attrib['Name'])
                 self.module.remove(Group)
             for tag in bad_tags:
-                for InOut in Group[1:]:
-                    if InOut.attrib['Name'] == tag['Name']:
+                for InOut in Group[self.FIRST_TAG_INDEX:]:
+                    if InOut.attrib['Name'] == tag['name']:
                         if len(InOut) < 35:
                             print(Group.attrib['Name'], InOut.attrib['Name'], len(InOut))
                             Group.remove(InOut)
 
     def add_comment(self):
         '''Добавление комментария для оборудования'''
-        for Group in self.module[3:]:
+        COMMENT_INDEX = 1
+        for Group in self.module[self.FIRST_CONTR_INDEX:]:
             comm = Group.attrib['Name'].replace('__', '..')
-            Settings = Group[0]
-            UserComment = Settings[1]
+            Settings = Group[self.SETTINGS_INDEX]
+            UserComment = Settings[COMMENT_INDEX]
             for comment in UserComment.iter('UserComment'):
                 comment.text = str(comm)
 
     def klogic_tree_find(self) -> KlogicAttrs:
         '''Получение необходимых атрибутов из klogic.xml'''
-        kl_find = KlogicAttrs(
-            danfoss=self.parsed_xml.find('.//TasksGroup1/Protocol/Settings/Name'),
-            gm=self.parsed_xml.find('.//TasksGroup1/Protocol/Module/Settings/Name'),
-            Groups=self.parsed_xml.find('.//TasksGroup1/Protocol/Module'),
-            fsection=self.parsed_xml.find('.//UserTask'),
-            task_name=self.parsed_xml.find('.//UserTask/Settings/Name'),
-            te=self.parsed_xml.find('.//TasksGroup0/UserTask/Settings'),
-            klogic_name=self.parsed_xml.find('.//Controller/Settings/Name'),
-            syst_num=self.parsed_xml.find('.//Controller/Settings/SystNum')
-        )
+        kl_find = ()
+        protocols = self.parsed_xml.findall('.//Protocol')
+        for protocol in protocols:
+            if protocol[self.SETTINGS_INDEX][self.NAME_INDEX].text == 'Danfoss':
+                kl_find = KlogicAttrs(
+                    danfoss=protocol[self.SETTINGS_INDEX][self.NAME_INDEX],
+                    gm=protocol[self.MODULE_INDEX][self.SETTINGS_INDEX][self.NAME_INDEX],
+                    Groups=protocol[self.MODULE_INDEX],
+                    fsection=self.parsed_xml.find('.//UserTask'),
+                    task_name=self.parsed_xml.find('.//UserTask/Settings/Name'),
+                    te=self.parsed_xml.find('.//TasksGroup0/UserTask/Settings'),
+                    klogic_name=self.parsed_xml.find('.//Controller/Settings/Name'),
+                    syst_num=self.parsed_xml.find('.//Controller/Settings/SystNum')
+                )
         return kl_find
 
     def shift(self) -> ShiftAttrs:
@@ -194,14 +215,15 @@ class KlogicXML:
         teall = '&lt;?xml version=&quot;1.0&quot; encoding=&quot;windows-1251&quot;?&gt;&lt;Elements&gt;&lt;Controls&gt;'
         task_name = kl_find.task_name
 
+        FIRST_FB_INDEX = 1
         num_of_inputs = 10  # Количество входов в каждом Функциональном блоке noffl
         strs = []  # Список со строками, содержащими путь к переменным в xml
         tag_settings = []  # Список, содержащий данные для заполнения в группе Connected функц.блока noffl
         num_of_contr = 0  # Переменная для подсчета контроллеров, подключенных к функц.блоку noffl
         num_of_fb = 0  # Переменная для подсчета фнукц.блоков noffl
 
-        for fb in range(len(fsection))[1:]:
-            fblock = fsection[fb][0][0]  # Название функц.блока
+        for fb in range(len(fsection))[FIRST_FB_INDEX:]:
+            fblock = fsection[fb][self.SETTINGS_INDEX][self.NAME_INDEX]  # Название функц.блока
             for h in range(0, 15):
                 if fblock.text == f'noffl {h + 1}':
                     num_of_fb = num_of_fb + 1  # Подсчет функц.блоков noffl
@@ -214,12 +236,12 @@ class KlogicXML:
                                 inout = Groups[fb_input + num_of_inputs * h]
                                 contr = inout.attrib['Name']
                                 flag = False
-                                for tag in range(len(inout))[1:]:
+                                for tag in range(len(inout))[self.FIRST_TAG_INDEX:]:
                                     if flag:  # проверка на тот случай, если контроллер уже добавлен в ФБ
                                         break
                                     for good_tag in good_tags:
                                         if good_tag['noffl']:
-                                            if inout[tag].attrib['Name'] == good_tag['Name']:
+                                            if inout[tag].attrib['Name'] == good_tag['name']:
                                                 tag_setting = inout[tag][0]
                                                 tag_settings.append(tag_setting)
                                                 tag_name = inout[tag].attrib['Name']
@@ -229,14 +251,14 @@ class KlogicXML:
                         else:
                             break
 
-                    for v in range(len(fsection[fb]))[1:]:
+                    for v in range(len(fsection[fb]))[FIRST_FB_INDEX:]:
                         if (num_of_contr + 3) < len(
                                 Groups):  # len(Groups) - общее колличество групп в Klogic XML, включая служебные(3 шт.)
                             noffl_input = fsection[fb][v]  # Вход функционального блока noffl
                             if noffl_input.attrib['Name'] == 'N' or \
                                     noffl_input.attrib['Name'] == 'T' or \
                                     noffl_input.attrib['Name'] == 'pOffline':
-                                print(fb, fsection[fb][0][0].text, 'v = ', v, noffl_input.attrib['Name'])
+                                print(fb, fblock.text, 'v = ', v, noffl_input.attrib['Name'])
                             else:
 
                                 ''' Формирование служебной строки <TaskElements> '''

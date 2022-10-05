@@ -19,8 +19,8 @@ class GoodTagsResource(resources.ModelResource):
 
 class GoodTagsAdmin(ImportExportActionModelAdmin):
     resource_class = GoodTagsResource
-    list_display = ['id', 'Name', 'alarm_id', 'bdtp', 'noffl']
-    search_fields = ['id', 'Name', 'alarm_id']
+    list_display = ['id', 'name', 'alarm_id', 'bdtp', 'noffl']
+    search_fields = ['id', 'name', 'alarm_id']
 
 
 admin.site.register(GoodTags, GoodTagsAdmin)
@@ -33,8 +33,8 @@ class BadTagsResource(resources.ModelResource):
 
 class BadTagsAdmin(ImportExportActionModelAdmin):
     resource_class = BadTagsResource
-    list_display = ['id', 'Name']
-    search_fields = ['id', 'Name']
+    list_display = ['id', 'name']
+    search_fields = ['id', 'name']
 
 
 admin.site.register(BadTags, BadTagsAdmin)
@@ -47,8 +47,8 @@ class NewTagsResource(resources.ModelResource):
 
 class NewTagsAdmin(ImportExportModelAdmin):
     resource_class = NewTagsResource
-    list_display = ['id', 'Name', 'Controller', 'alarm_id', 'bdtp', 'noffl']
-    search_fields = ['Name', 'Controller']
+    list_display = ['id', 'name', 'Controller', 'alarm_id', 'bdtp', 'noffl']
+    search_fields = ['name', 'Controller']
 
 
 admin.site.register(NewTags, NewTagsAdmin)
