@@ -25,10 +25,6 @@ def get_tags() -> Iterable:
 
 def shift_create(klogic_xml: KlogicXML, gmget: str):
     '''Подсчет смещения адресов контроллеров'''
-    ATTR_NAME_INDEX = 0
-    ATTR_LEN_INDEX = 1
-    ATTR_ADR_INDEX = 3
-
     if Shift.objects.filter(gm=gmget).exists():
         Shift.objects.filter(gm=gmget).delete()
 
@@ -39,15 +35,15 @@ def shift_create(klogic_xml: KlogicXML, gmget: str):
         for l in shift_attr.all_lens:
             address = 0
             for i, _ in enumerate(shift_attr.all_attrs):
-                if shift_attr.all_attrs[i][ATTR_LEN_INDEX] != l:
+                if shift_attr.all_attrs[i].len_group != l:
                     continue
                 current_shift = (
-                    float(shift_attr.all_attrs[i][ATTR_ADR_INDEX]) - address
+                    float(shift_attr.all_attrs[i].addr) - address
                     if i and address else 0
                 )
-                address = float(shift_attr.all_attrs[i][ATTR_ADR_INDEX])
+                address = float(shift_attr.all_attrs[i].addr)
                 file.write(
-                    f'Кол-во переменных = {l}. {shift_attr.all_attrs[i][ATTR_NAME_INDEX]}. Смещение = {current_shift} \n')
+                    f'Кол-во переменных = {l}. {shift_attr.all_attrs[i].name}. Смещение = {current_shift} \n')
 
 
 def index(request):
@@ -58,12 +54,12 @@ def index(request):
         context['gm'] = gmget
         try:
             xml_path = klogic.objects.get(gm=gmget).xml.path
-            klogic_xml = KlogicXML(xml_path)
+            klogic_xml = KlogicXML(xml_path, Prot_code='244')
             # bdtp_checkbox = request.POST.get('bd')
             # alarm_checkbox = request.POST.get('alarm')
             # tree = ElementTree.parse(xml_path)
             try:
-                klogic_xml.find_danfoss_module()
+                klogic_xml.find_module()
                 print(klogic_xml.module.tag)
                 klogic_xml.h_remove(history_attr.get_h_attrs())
                 NewTags.delete_NewTagsall()
@@ -84,6 +80,7 @@ def index(request):
             if new_tags == -1:
                 context['text'] = "В группе Alarms у централи добавлены не все переменные"
             else:
+                klogic_xml.delete_empty_groups()
                 klogic_xml.delete_tags(BadTags.get_BadTags_values())
                 klogic_xml.add_comment()
                 klogic_xml.noffl(GoodTags.get_GoodTags_values())
