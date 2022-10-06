@@ -63,6 +63,8 @@ class KlogicXML:
         self.tag_noffl_flag = False
         self.tag_settings = []              # Список, содержащий данные для заполнения в группе Connected функц.блока noffl
         self.strs = []                      # Список со строками, содержащими путь к переменным noffl в xml
+        self.noffl_contr = 0                # Переменная для подсчета контроллеров, подключенных к функц.блоку noffl
+        self.teall = '&lt;?xml version=&quot;1.0&quot; encoding=&quot;windows-1251&quot;?&gt;&lt;Elements&gt;&lt;Controls&gt;'
         self.MODULE_INDEX = 1
         self.FIRST_TAG_INDEX = 1
         self.FIRST_CONTR_INDEX = 3
@@ -237,21 +239,53 @@ class KlogicXML:
                     self.tag_noffl_flag = True
                     return tag_name
 
-    def get_noffl_tag_info(self, inout: Element, good_tags: Iterable):
+    def get_noffl_tag_info(self, fb: Element, h: int, good_tags: Iterable):
         '''Получение необходимой информации по параметру noffl'''
         kl_find = self.klogic_tree_find()
+        Groups = kl_find.Groups
         protocol_name = kl_find.protocol_name
         gm = kl_find.gm
-        contr = inout.attrib['Name']
-        self.tag_noffl_flag = False
-        for tag in inout[self.FIRST_TAG_INDEX:]:
-            if self.tag_noffl_flag:  # проверка на тот случай, если контроллер уже добавлен в ФБ
+        num_of_inputs = 10  # Количество входов в каждом Функциональном блоке noffl
+
+        for fb_input in range(len(fb))[3:]:  # 3 входа ФБ не используются на этом этапе
+            if (fb_input + num_of_inputs * h) < len(
+                    Groups):  # проверка, чтобы текущий номер входа ФБ не превышал кол-во контроллеров
+                if (fb_input + 1) == len(fb):  # последний вход ФБ
+                    continue
+                else:
+                    inout = Groups[fb_input + num_of_inputs * h]
+                    contr = inout.attrib['Name']
+                    self.tag_noffl_flag = False
+                    for tag in inout[self.FIRST_TAG_INDEX:]:
+                        if self.tag_noffl_flag:  # проверка на тот случай, если контроллер уже добавлен в ФБ
+                            break
+                        tag_name = self.get_noffl_tag(tag, good_tags)
+                        if tag_name:
+                            self.tag_settings.append(tag[0])
+                            st = f'{protocol_name.text}.{gm.text}.{contr}.{tag_name}'
+                            self.strs.append(st)
+            else:
                 break
-            tag_name = self.get_noffl_tag(tag, good_tags)
-            if tag_name:
-                self.tag_settings.append(tag[0])
-                st = f'{protocol_name.text}.{gm.text}.{contr}.{tag_name}'
-                self.strs.append(st)
+
+    def check_noffl_input(self, noffl_input: Element) -> bool:
+        return (True
+                if all([
+            noffl_input.attrib['Name'] != 'N',
+            noffl_input.attrib['Name'] != 'T',
+            noffl_input.attrib['Name'] != 'pOffline'])
+                else False
+        )
+
+    def create_task_elements(self, in_name: str, task_name: Element, fblock: Element):
+        ''' Формирование служебной строки <TaskElements> '''
+        te = f'&lt;ExternalLink&gt;&lt;Path&gt;{task_name.text}.{fblock.text}.{in_name}&lt;/Path&gt;&lt;MarkerLink&gt;&lt;Link&gt;{self.strs[self.noffl_contr]}&lt;/Link&gt;&lt;showAllConnections&gt;False&lt;/showAllConnections&gt;&lt;offsetMarkerFB&gt;40&lt;/offsetMarkerFB&gt;&lt;/MarkerLink&gt;&lt;/ExternalLink&gt;'
+        self.teall = self.teall + te
+
+    def tree_insert(self, parent_group: Element, insert_index: int, child_group: str, text: str):
+        child = ElementTree.Element(child_group)
+        if text != 'None':
+            child.text = text
+        parent_group.insert(insert_index, child)
 
     def noffl(self, good_tags: Iterable):
         '''Привязка входов к функциональном блокам noffl'''
@@ -261,8 +295,10 @@ class KlogicXML:
         teall = '&lt;?xml version=&quot;1.0&quot; encoding=&quot;windows-1251&quot;?&gt;&lt;Elements&gt;&lt;Controls&gt;'
         task_name = kl_find.task_name
         FIRST_FB_INDEX = 1
+        FIRST_NOFFL_INPUT_INDEX = 1
+        TAG_CONNECTED_INDEX = 0
+        FB_INPUT_CONNECTED_INDEX = 1
         num_of_inputs = 10  # Количество входов в каждом Функциональном блоке noffl
-        num_of_contr = 0  # Переменная для подсчета контроллеров, подключенных к функц.блоку noffl
         num_of_fb = 0  # Переменная для подсчета фнукц.блоков noffl
 
         for fb in fsection[FIRST_FB_INDEX:]:
@@ -270,45 +306,28 @@ class KlogicXML:
             for h in range(0, 15):
                 if fblock.text == f'noffl {h + 1}':
                     num_of_fb = num_of_fb + 1  # Подсчет функц.блоков noffl
-                    for fb_input in range(len(fb))[3:]:  # 3 входа ФБ не используются на этом этапе
-                        if (fb_input + num_of_inputs * h) < len(Groups):  # проверка, чтобы текущий номер входа ФБ не превышал кол-во контроллеров
-                            if (fb_input + 1) == len(fb):  # последний вход ФБ
-                                continue
-                            else:
-                                inout = Groups[fb_input + num_of_inputs * h]
-                                self.get_noffl_tag_info(inout, good_tags)
-                        else:
-                            break
+                    self.get_noffl_tag_info(fb, h, good_tags)
 
-                    for noffl_input in fb[FIRST_FB_INDEX:]:
-                        if (num_of_contr + 3) < len(Groups):  # len(Groups) - общее колличество групп в Klogic XML, включая служебные(3 шт.)
-                            if noffl_input.attrib['Name'] == 'N' or \
-                                    noffl_input.attrib['Name'] == 'T' or \
-                                    noffl_input.attrib['Name'] == 'pOffline':
-                                print(fblock.text, noffl_input.attrib['Name'])
-                            else:
+                    for noffl_input in fb[FIRST_NOFFL_INPUT_INDEX:]:
+                        if (self.noffl_contr + 3) < len(Groups):  # len(Groups) - общее колличество групп в Klogic XML, включая служебные(3 шт.)
+                            if self.check_noffl_input(noffl_input):
 
-                                ''' Формирование служебной строки <TaskElements> '''
                                 in_name = noffl_input.attrib['Name']
+                                self.create_task_elements(in_name, task_name, fblock)
                                 str_link = f'{task_name.text}.{fblock.text}.{in_name}'
-                                te = f'&lt;ExternalLink&gt;&lt;Path&gt;{task_name.text}.{fblock.text}.{in_name}&lt;/Path&gt;&lt;MarkerLink&gt;&lt;Link&gt;{self.strs[num_of_contr]}&lt;/Link&gt;&lt;showAllConnections&gt;False&lt;/showAllConnections&gt;&lt;offsetMarkerFB&gt;40&lt;/offsetMarkerFB&gt;&lt;/MarkerLink&gt;&lt;/ExternalLink&gt;'
-                                teall = teall + te
 
                                 ''' Подключение тегов на входы функционального блока '''
-                                ts = self.tag_settings[num_of_contr]
-                                Connected2 = ElementTree.Element("Connected")
-                                Connected2.text = str_link
-                                ts.insert(0, Connected2)
-                                Connected = ElementTree.Element("Connected")
-                                Connected.text = self.strs[num_of_contr]
-                                noffl_input[0].insert(1, Connected)
-                                print('N =', (num_of_contr - num_of_inputs * (num_of_fb - 1)), str_link,
-                                      self.strs[num_of_contr])
-                                num_of_contr = num_of_contr + 1  # Подсчет контроллеров, подключенных к функц.блоку noffl
+                                self.tree_insert(self.tag_settings[self.noffl_contr], TAG_CONNECTED_INDEX, 'Connected',
+                                                 str_link)
+                                self.tree_insert(noffl_input[self.SETTINGS_INDEX], FB_INPUT_CONNECTED_INDEX,
+                                                 'Connected', self.strs[self.noffl_contr])
+
+                                print(str_link, self.strs[self.noffl_contr])
+                                self.noffl_contr = self.noffl_contr + 1  # Подсчет контроллеров, подключенных к функц.блоку noffl
                         else:
                             break
                     N_input = fb[5][0]  # Вход ФБ с колличеством подключенных контроллеров
-                    connected_inputs = num_of_contr - num_of_inputs * (num_of_fb - 1)
+                    connected_inputs = self.noffl_contr - num_of_inputs * (num_of_fb - 1)
                     N_input.remove(N_input[3])
                     InitValue0 = ElementTree.Element("InitValue0")
                     if connected_inputs > 0:
