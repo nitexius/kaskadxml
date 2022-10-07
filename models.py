@@ -2,8 +2,8 @@ from django.db import models
 from .alrm import alrm, stations
 
 
-class klogic(models.Model):
-    '''xml klogic ИС Диспетчеризация ХО'''
+class Klogic(models.Model):
+    """xml klogic ИС Диспетчеризация ХО"""
     gm = models.CharField(max_length=100, verbose_name='Код ГМ', unique=True)
     xml = models.FileField(upload_to='media/klogic')
     station_id = models.CharField(max_length=100, default='0', verbose_name='Индетификатор станции', choices=stations)
@@ -18,7 +18,7 @@ class klogic(models.Model):
 
 
 class Shift(models.Model):
-    '''Смещение адресов контроллеров в xml klogic'''
+    """Смещение адресов контроллеров в xml klogic"""
     gm = models.CharField(max_length=100, verbose_name='Код ГМ', unique=True)
     txt = models.FileField(upload_to='media/shift')
 
@@ -29,8 +29,8 @@ class Shift(models.Model):
         return self.gm
 
 
-class alarms(models.Model):
-    '''xml Аварии ИС Диспетчеризация ХО'''
+class Alarms(models.Model):
+    """xml Аварии ИС Диспетчеризация ХО"""
     gm = models.CharField(max_length=100, verbose_name='Код ГМ', unique=True)
     xml = models.FileField(upload_to='media/alarms')
 
@@ -43,8 +43,8 @@ class alarms(models.Model):
         return self.gm
 
 
-class klogger(models.Model):
-    '''xml klogger (BDTP) ИС Диспетчеризация ХО'''
+class Klogger(models.Model):
+    """xml klogger (BDTP) ИС Диспетчеризация ХО"""
     gm = models.CharField(max_length=100, verbose_name='Код ГМ', unique=True)
     xml = models.FileField(upload_to='media/klogger')
 
@@ -58,7 +58,7 @@ class klogger(models.Model):
 
 
 class Cutout(models.Model):
-    '''Уставки для продуктов (Контроль уставок)'''
+    """Уставки для продуктов (Контроль уставок)"""
     name = models.CharField(max_length=100, verbose_name='Наименование продукта', unique=True)
     cutout = models.IntegerField(default=-50, verbose_name='Уставка')
 
@@ -76,8 +76,8 @@ class Cutout(models.Model):
         return self.name
 
 
-class history_attr(models.Model):
-    '''Служебные символы в названии переменной'''
+class HistoryAttr(models.Model):
+    """Служебные символы в названии переменной"""
     h_attr = models.CharField(max_length=30)
 
     class Meta:
@@ -99,7 +99,7 @@ class history_attr(models.Model):
 
 
 class GoodTags(models.Model):
-    '''Используемые переменные'''
+    """Используемые переменные"""
 
     name = models.CharField(max_length=100, verbose_name='Название переменной', unique=True)
     alarm_id = models.CharField(max_length=100, default='None', verbose_name='Код аварии', choices=alrm)
@@ -112,14 +112,14 @@ class GoodTags(models.Model):
         verbose_name_plural = 'Используемые переменные'
 
     @classmethod
-    def get_GoodTags_values(cls):
-        Goodtag = list(GoodTags.objects.all().values())
-        return Goodtag
+    def get_good_tags_values(cls):
+        goodtag = list(GoodTags.objects.all().values())
+        return goodtag
 
     @classmethod
-    def get_GoodTagsall(cls):
-        Goodtag = GoodTags.objects.all()
-        return Goodtag
+    def get_good_tags_all(cls):
+        goodtag = GoodTags.objects.all()
+        return goodtag
 
     @classmethod
     def get_all_id(cls):
@@ -132,13 +132,13 @@ class GoodTags(models.Model):
 
     @classmethod
     def get_bdtp_tags(cls):
-        bdtpTag = GoodTags.objects.filter(bdtp='1')
-        return bdtpTag
+        bdtp_tag = GoodTags.objects.filter(bdtp='1')
+        return bdtp_tag
 
     @classmethod
     def get_central_tag(cls):
-        centralTag = GoodTags.objects.filter(alarm_id='central')
-        return centralTag
+        central_tag = GoodTags.objects.filter(alarm_id='central')
+        return central_tag
 
     @classmethod
     def is_exist_tag(cls, tag_name: str):
@@ -149,7 +149,7 @@ class GoodTags(models.Model):
 
 
 class BadTags(models.Model):
-    '''Удаляемые переменные'''
+    """Удаляемые переменные"""
     name = models.CharField(max_length=100, verbose_name='Название переменной', unique=True)
 
     class Meta:
@@ -158,14 +158,14 @@ class BadTags(models.Model):
         verbose_name_plural = 'Удаляемые переменные'
 
     @classmethod
-    def get_BadTags_values(cls):
-        Badtag = list(BadTags.objects.all().values())
-        return Badtag
+    def get_bad_tags_values(cls):
+        bad_tag = list(BadTags.objects.all().values())
+        return bad_tag
 
     @classmethod
-    def get_BadTagsall(cls):
-        Badtag = BadTags.objects.all()
-        return Badtag
+    def get_bad_tags_all(cls):
+        bad_tag = BadTags.objects.all()
+        return bad_tag
 
     @classmethod
     def get_all_id(cls):
@@ -180,7 +180,7 @@ class BadTags(models.Model):
 
 
 class NewTags(models.Model):
-    '''Новые переменные, отсутсвующие в GoodTags, BadTags'''
+    """Новые переменные, отсутсвующие в GoodTags, BadTags"""
     name = models.CharField(max_length=100, verbose_name='Название переменной')
     Controller = models.CharField(max_length=100, default="", verbose_name='Название контроллера')
     alarm_id = models.CharField(max_length=100, default='None', verbose_name='Код аварии', choices=alrm)
@@ -192,13 +192,13 @@ class NewTags(models.Model):
         verbose_name_plural = 'Новые переменные'
 
     @classmethod
-    def delete_NewTagsall(cls):
-        Newtag = NewTags.objects.all()
-        Newtag.delete()
+    def delete_new_tags_all(cls):
+        new_tag = NewTags.objects.all()
+        new_tag.delete()
 
-    def get_NewTagsall(cls):
-        Newtag = NewTags.objects.all()
-        return Newtag
+    def get_new_tags_all(cls):
+        new_tag = NewTags.objects.all()
+        return new_tag
 
     @classmethod
     def is_exist_tag(cls, tag_name: str):

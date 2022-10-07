@@ -1,15 +1,15 @@
 from django.contrib import admin
-from .models import klogic, klogger, alarms, history_attr, GoodTags, BadTags, NewTags, Cutout, Shift
+from .models import Klogic, Klogger, Alarms, HistoryAttr, GoodTags, BadTags, NewTags, Cutout, Shift
 
 from import_export.admin import ImportExportActionModelAdmin, ImportExportModelAdmin
 from import_export import resources
 
 
-admin.site.register(klogic)
+admin.site.register(Klogic)
 admin.site.register(Shift)
-admin.site.register(klogger)
-admin.site.register(alarms)
-admin.site.register(history_attr)
+admin.site.register(Klogger)
+admin.site.register(Alarms)
+admin.site.register(HistoryAttr)
 
 
 class GoodTagsResource(resources.ModelResource):
