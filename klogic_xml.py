@@ -64,10 +64,13 @@ class KlogicXML:
         self.tag_settings = []              # Список, содержащий данные для заполнения в группе Connected функц.блока noffl
         self.strs = []                      # Список со строками, содержащими путь к переменным noffl в xml
         self.noffl_contr = 0                # Переменная для подсчета контроллеров, подключенных к функц.блоку noffl
+        self.num_of_fb = 0
+        self.connected_inputs = 0
         self.teall = '&lt;?xml version=&quot;1.0&quot; encoding=&quot;windows-1251&quot;?&gt;&lt;Elements&gt;&lt;Controls&gt;'
         self.MODULE_INDEX = 1
         self.FIRST_TAG_INDEX = 1
         self.FIRST_CONTR_INDEX = 3
+        self.FIRST_FB_INPUT_INDEX = 1
         self.SETTINGS_INDEX = 0
         self.NAME_INDEX = 0
 
@@ -261,7 +264,7 @@ class KlogicXML:
                             break
                         tag_name = self.get_noffl_tag(tag, good_tags)
                         if tag_name:
-                            self.tag_settings.append(tag[0])
+                            self.tag_settings.append(tag[self.SETTINGS_INDEX])
                             st = f'{protocol_name.text}.{gm.text}.{contr}.{tag_name}'
                             self.strs.append(st)
             else:
@@ -287,28 +290,56 @@ class KlogicXML:
             child.text = text
         parent_group.insert(insert_index, child)
 
+    def update_inout_setting(self, inout: Element, setting_tag: str, text: str):
+        for setting in inout[self.SETTINGS_INDEX]:
+            if setting.tag == setting_tag:
+                setting.text = text
+                print(setting.tag, text)
+
+    def update_noffl_n(self, fb: Element):
+        '''Вставка количества контроллеров в ФБ'''
+        N_INPUT_INDEX = 5
+        if self.connected_inputs > 0:
+            setting_text = '%.2f' % self.connected_inputs
+        else:
+            setting_text = '%.2f' % 0
+        self.update_inout_setting(fb[N_INPUT_INDEX], 'InitValue0', setting_text)
+
+    def update_all_n(self, smart_divide:Element):
+        ''' Вставка количества контроллеров в ФБ smart divide'''
+        print('Общее количество контроллеров:', ((self.num_of_fb - 1) * 10) + self.connected_inputs)
+        for inout in smart_divide[self.FIRST_FB_INPUT_INDEX:]:
+            if inout.attrib['Name'] == 'Делитель 1':
+                self.update_inout_setting(inout, 'InitValue0', '%.2f' % (((self.num_of_fb - 1) * 10) + self.connected_inputs))
+
+    def insert_task_elements(self, kl_find: KlogicAttrs):
+        ''' Вставка строки <TaskElements> '''
+        self.teall = self.teall + '&lt;/Controls&gt;&lt;/Elements&gt;'
+        settings = kl_find.te
+        for index in range(len(settings)):
+            if settings[index].tag == 'TaskElements':
+                settings.remove(settings[index])
+                self.tree_insert(settings, index, 'TaskElements', self.teall)
+
     def noffl(self, good_tags: Iterable):
         '''Привязка входов к функциональном блокам noffl'''
         kl_find = self.klogic_tree_find()
         Groups = kl_find.Groups
         fsection = kl_find.fsection
-        teall = '&lt;?xml version=&quot;1.0&quot; encoding=&quot;windows-1251&quot;?&gt;&lt;Elements&gt;&lt;Controls&gt;'
         task_name = kl_find.task_name
         FIRST_FB_INDEX = 1
-        FIRST_NOFFL_INPUT_INDEX = 1
         TAG_CONNECTED_INDEX = 0
         FB_INPUT_CONNECTED_INDEX = 1
         num_of_inputs = 10  # Количество входов в каждом Функциональном блоке noffl
-        num_of_fb = 0  # Переменная для подсчета фнукц.блоков noffl
 
         for fb in fsection[FIRST_FB_INDEX:]:
             fblock = fb[self.SETTINGS_INDEX][self.NAME_INDEX]  # Название функц.блока
             for h in range(0, 15):
                 if fblock.text == f'noffl {h + 1}':
-                    num_of_fb = num_of_fb + 1  # Подсчет функц.блоков noffl
+                    self.num_of_fb += 1  # Подсчет функц.блоков noffl
                     self.get_noffl_tag_info(fb, h, good_tags)
 
-                    for noffl_input in fb[FIRST_NOFFL_INPUT_INDEX:]:
+                    for noffl_input in fb[self.FIRST_FB_INPUT_INDEX:]:
                         if (self.noffl_contr + 3) < len(Groups):  # len(Groups) - общее колличество групп в Klogic XML, включая служебные(3 шт.)
                             if self.check_noffl_input(noffl_input):
 
@@ -323,43 +354,15 @@ class KlogicXML:
                                                  'Connected', self.strs[self.noffl_contr])
 
                                 print(str_link, self.strs[self.noffl_contr])
-                                self.noffl_contr = self.noffl_contr + 1  # Подсчет контроллеров, подключенных к функц.блоку noffl
+                                self.noffl_contr += 1  # Подсчет контроллеров, подключенных к функц.блоку noffl
                         else:
                             break
-                    N_input = fb[5][0]  # Вход ФБ с колличеством подключенных контроллеров
-                    connected_inputs = self.noffl_contr - num_of_inputs * (num_of_fb - 1)
-                    N_input.remove(N_input[3])
-                    InitValue0 = ElementTree.Element("InitValue0")
-                    if connected_inputs > 0:
-                        print(N_input[3].text, '%.2f' % connected_inputs)
-                        InitValue0.text = '%.2f' % connected_inputs
-                    else:
-                        InitValue0.text = '%.2f' % 0
-                    N_input.insert(3, InitValue0)
-
+                    self.connected_inputs = self.noffl_contr - num_of_inputs * (self.num_of_fb - 1)
+                    self.update_noffl_n(fb)
                 if fblock.text == 'smart divide':
-                    smart_divide = fb  # Номер ФБ smart divide
-
-        ''' Вставка строки <TaskElements> '''
-        teall = teall + '&lt;/Controls&gt;&lt;/Elements&gt;'
-        te = kl_find.te
-        for child in range(len(te)):
-            if te[child].tag == 'TaskElements':
-                te.remove(te[child])
-                TaskElements = ElementTree.Element("TaskElements")
-                TaskElements.text = teall
-                te.insert(child, TaskElements)
-
-        ''' Вставка количества контроллеров в ФБ smart divide'''
-        print('Общее количество контроллеров:', ((num_of_fb - 1) * 10) + connected_inputs, 'u=', connected_inputs)
-        for t in range(len(smart_divide))[1:]:
-            if smart_divide[t].attrib['Name'] == 'Делитель 1':
-                all_contr = smart_divide[t][0]
-                all_contr.remove(all_contr[3])
-                nall = ((num_of_fb - 1) * 10) + connected_inputs
-                InitValueNAll = ElementTree.Element("InitValue0")
-                InitValueNAll.text = '%.2f' % nall
-                all_contr.insert(3, InitValueNAll)
+                    smart_divide = fb  # ФБ smart divide
+        self.insert_task_elements(kl_find)
+        self.update_all_n(smart_divide)
 
     def write(self, xml_path: pathlib.Path):
         if xml_path == '':
