@@ -132,8 +132,9 @@ class GoodTags(models.Model):
 
     @classmethod
     def get_bdtp_tags(cls):
-        bdtp_tag = GoodTags.objects.filter(bdtp='1')
-        return bdtp_tag
+        bdtp_tags = list(GoodTags.objects.filter(bdtp='1').values())
+        # bdtp_tag = GoodTags.objects.filter(bdtp='1')
+        return bdtp_tags
 
     @classmethod
     def get_central_tag(cls):

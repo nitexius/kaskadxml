@@ -8,7 +8,8 @@ from xml.etree.ElementTree import ElementTree as ET_class
 from .models import HistoryAttr, GoodTags, BadTags, Klogic, Klogger, Alarms, Cutout, NewTags, Shift
 from .forms import KlogicForm
 from .alrm import alrm, stations
-from .klogic_xml import KlogicXML
+from .klogic_xml import KlogicXML, KlogicAttrs
+from .klogger_xml import KloggerXML
 
 
 def get_tags() -> Iterable:
@@ -54,8 +55,9 @@ def index(request):
         context['gm'] = gmget
         try:
             xml_path = Klogic.objects.get(gm=gmget).xml.path
+            station_id = Klogic.objects.get(gm=gmget).station_id
             klogic_xml = KlogicXML(xml_path, prot_code='244')
-            # bdtp_checkbox = request.POST.get('bd')
+            bdtp_checkbox = request.POST.get('bd')
             # alarm_checkbox = request.POST.get('alarm')
             # tree = ElementTree.parse(xml_path)
             try:
@@ -86,19 +88,20 @@ def index(request):
                 klogic_xml.noffl(GoodTags.get_good_tags_values())
                 klogic_xml.write('')
                 shift_create(klogic_xml, gmget)
-                # if bdtp_checkbox:
-                #     print('bdtp_checkbox:', bdtp_checkbox)
-                #     try:
-                #         klogger_xml = klogger.objects.get(gm=gmget).xml.path
-                #         klogger_tree = ElementTree.parse(klogger_xml)
-                #         DBVersion = klogger_tree.find('.//DBVersion')
-                #         try:
-                #             print(DBVersion.tag)
-                #             context['text_bdtp'] = bdtp(gmget, tree, Module, klogger_xml, klogger_tree)
-                #         except AttributeError:
-                #             context['text_bdtp'] = "Klogger XML: Неправильный формат"
-                #     except (klogger.DoesNotExist, FileNotFoundError):
-                #         context['text_bdtp'] = "Klogger XML не найден"
+                if bdtp_checkbox:
+                    print('bdtp_checkbox:', bdtp_checkbox)
+                    try:
+                        klogger_xml_path = Klogger.objects.get(gm=gmget).xml.path
+                        klogger_xml = KloggerXML(klogger_xml_path, klogic_xml.klogic_tree_find(), station_id)
+                        try:
+                            print(klogger_xml.db_version.tag)
+                            klogger_xml.delete_old_config()
+                            context['text_bdtp'] = klogger_xml.bdtp(klogic_xml.module, GoodTags.get_bdtp_tags())
+                            klogger_xml.write('')
+                        except AttributeError:
+                            context['text_bdtp'] = "Klogger XML: Неправильный формат"
+                    except (Klogger.DoesNotExist, FileNotFoundError):
+                        context['text_bdtp'] = "Klogger XML не найден"
                 # if alarm_checkbox:
                 #     print('alarm_checkbox:', alarm_checkbox)
                 #     try:
