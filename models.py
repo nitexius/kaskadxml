@@ -68,8 +68,8 @@ class Cutout(models.Model):
         verbose_name_plural = 'Контроль уставок'
 
     @classmethod
-    def get_products_name(cls):
-        products = Cutout.objects.all()
+    def get_products_values(cls):
+        products = list(Cutout.objects.all().values())
         return products
 
     def __str__(self):
@@ -137,9 +137,9 @@ class GoodTags(models.Model):
         return bdtp_tags
 
     @classmethod
-    def get_central_tag(cls):
-        central_tag = GoodTags.objects.filter(alarm_id='central')
-        return central_tag
+    def get_central_tags(cls):
+        central_tags = list(GoodTags.objects.filter(alarm_id='central').values())
+        return central_tags
 
     @classmethod
     def is_exist_tag(cls, tag_name: str):

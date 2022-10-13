@@ -10,6 +10,7 @@ from .forms import KlogicForm
 from .alrm import alrm, stations
 from .klogic_xml import KlogicXML, KlogicAttrs
 from .klogger_xml import KloggerXML
+from .alarms_xml import AlarmsXML
 
 
 def get_tags() -> Iterable:
@@ -47,6 +48,26 @@ def shift_create(klogic_xml: KlogicXML, gmget: str):
                     f'Кол-во переменных = {l}. {shift_attr.all_attrs[i].name}. Смещение = {current_shift} \n')
 
 
+def delete_old_alarm(gmget: str):
+    try:
+        old_alarm = Alarms.objects.get(gm=gmget)
+        old_alarm.delete()
+    except Alarms.DoesNotExist:
+        pass
+
+
+def get_new_alarm_xml_path(alarm_xml, gmget: str) -> pathlib.Path:
+    FILE_INDEX = 1
+    FILE_NAME_INDEX = 0
+    FILE_EXTENSION_INDEX = 1
+    old_xml = alarm_xml.split('media_cdn/')[FILE_INDEX]
+    gmget_xml = old_xml.split(".")[FILE_NAME_INDEX] + gmget + "." + old_xml.split(".")[FILE_EXTENSION_INDEX]
+    Alarms.objects.create(gm=gmget, xml=gmget_xml)
+    new_xml_pass = alarm_xml.split(".")[FILE_NAME_INDEX] + gmget + "." + alarm_xml.split(".")[FILE_EXTENSION_INDEX]
+    shutil.copyfile(alarm_xml, new_xml_pass)
+    return Alarms.objects.get(gm=gmget).xml.path
+
+
 def index(request):
     form = KlogicForm()
     context = {'form': form}
@@ -58,7 +79,7 @@ def index(request):
             station_id = Klogic.objects.get(gm=gmget).station_id
             klogic_xml = KlogicXML(xml_path, prot_code='244')
             bdtp_checkbox = request.POST.get('bd')
-            # alarm_checkbox = request.POST.get('alarm')
+            alarm_checkbox = request.POST.get('alarm')
             # tree = ElementTree.parse(xml_path)
             try:
                 klogic_xml.find_module()
@@ -102,19 +123,28 @@ def index(request):
                             context['text_bdtp'] = "Klogger XML: Неправильный формат"
                     except (Klogger.DoesNotExist, FileNotFoundError):
                         context['text_bdtp'] = "Klogger XML не найден"
-                # if alarm_checkbox:
-                #     print('alarm_checkbox:', alarm_checkbox)
-                #     try:
-                #         alarm_xml = alarms.objects.get(gm='default_alarm_xml').xml.path
-                #         alarm_tree = ElementTree.parse(alarm_xml)
-                #         GroupItem = alarm_tree.find('.//GroupItem')
-                #         try:
-                #             print(GroupItem.tag)
-                #             context['text_al'] = alarm(gmget, tree, Module, alarm_xml)
-                #         except AttributeError:
-                #             context['text_al'] = "Alarm XML: Неправильный формат"
-                #     except (alarms.DoesNotExist, FileNotFoundError):
-                #         context['text_al'] = "Alarm XML не найден"
+                if alarm_checkbox:
+                    print('alarm_checkbox:', alarm_checkbox)
+                    try:
+                        default_alarm_xml_path = Alarms.objects.get(gm='default_alarm_xml').xml.path
+                        delete_old_alarm(gmget)
+                        new_xml_path = get_new_alarm_xml_path(default_alarm_xml_path, gmget)
+                        alarm_xml = AlarmsXML(
+                            new_xml_path,
+                            GoodTags.get_good_tags_values(),
+                            GoodTags.get_central_tags(),
+                            klogic_xml.klogic_tree_find(),
+                            station_id,
+                            Cutout.get_products_values()
+                        )
+                        try:
+                            print(alarm_xml.group_item.tag)
+                            context['text_al'] = alarm_xml.alarm(klogic_xml.module)
+                            alarm_xml.write('')
+                        except AttributeError:
+                            context['text_al'] = "Alarm XML: Неправильный формат"
+                    except (Alarms.DoesNotExist, FileNotFoundError):
+                        context['text_al'] = "Alarm XML не найден"
 
                 context['text_kl'] = "Klogic XML: Обработка завершена"
 

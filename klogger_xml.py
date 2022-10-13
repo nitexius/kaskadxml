@@ -46,6 +46,7 @@ class KloggerXML:
         self.all_par = set()
 
     def delete_old_config(self):
+        """Удаление старой конфигурации klogger"""
         try:
             old_groups = self.parsed_xml.find('.//Groups')
             print('len(old_groups)=', len(old_groups))
@@ -56,12 +57,14 @@ class KloggerXML:
             pass
 
     def remove_service_attrs(self, parent_group: str, group_name: str, iterables: Iterable):
+        """Удаление служебных символов в названии групп"""
         for index in iterables:
             for parent in self.parsed_xml.findall(parent_group):
                 for child in parent:
                     child.tag = child.tag.replace(f'{group_name}{index}', f'{group_name}')
 
     def insert_grp_config(self, contr_index: int, contr: str):
+        """Добавление нового контроллера в дерево конфигурации"""
         tree_insert(self.parsed_xml.find('.//Groups'), contr_index, f'Grp{contr_index}', False)
         parent_group = self.parsed_xml.find(f'.//Grp{contr_index}')
         tree_insert(parent_group, GRP_NAME_INDEX, 'Name', contr)
@@ -69,6 +72,7 @@ class KloggerXML:
         tree_insert(parent_group, PARAMS_INDEX, f'Params{contr_index}', False)
 
     def get_bdtp_tags(self, module: Element, bdtp_tags: Iterable):
+        """Получение всех архивируемых параметров, с разделением по контроллерам"""
         for contr_index in range(len(module))[FIRST_CONTR_INDEX:]:
             self.all_groups.append(contr_index)
             contr = module[contr_index].attrib['Name']
@@ -76,9 +80,9 @@ class KloggerXML:
             tag_number = 0
             group_tags = {}
             for inout in module[contr_index][FIRST_TAG_INDEX:]:
-                for bdtptag in bdtp_tags:
+                for bdtp_tag in bdtp_tags:
                     tag = {}
-                    if inout.attrib['Name'] == bdtptag['name']:
+                    if inout.attrib['Name'] == bdtp_tag['name']:
                         tag_name = inout.attrib['Name']
                         tag['Name'] = tag_name
                         for setting in inout[SETTINGS_INDEX].iter('KId'):
@@ -107,7 +111,7 @@ class KloggerXML:
         return type_name
 
     def bdtp(self, module: Element, bdtp_tags: Iterable) -> str:
-        '''Формирование klogger.xml'''
+        """Формирование klogger.xml"""
         tree_insert(self.klogger_root, GROUPS_INDEX, 'Groups', False)
         self.get_bdtp_tags(module, bdtp_tags)
 
@@ -136,7 +140,7 @@ class KloggerXML:
         return "Klogger XML: Обработка завершена"
 
     def write(self, xml_path: pathlib.Path):
-        self.indent(self.klogger_root)
         if xml_path == '':
             xml_path = self.xml_path
-        self.parsed_xml.write(xml_path)
+        print(xml_path)
+        self.parsed_xml.write(xml_path, encoding='UTF-8')

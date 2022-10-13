@@ -4,7 +4,7 @@ from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
 from dataclasses import dataclass
 from .klogic_indexes import MODULE_INDEX, \
-    FIRST_TAG_INDEX, FIRST_CONTR_INDEX, FIRST_FB_INPUT_INDEX, SETTINGS_INDEX, NAME_INDEX
+    FIRST_TAG_INDEX, FIRST_CONTR_INDEX, FIRST_FB_INPUT_INDEX, SETTINGS_INDEX, NAME_INDEX, ALARM_SPLIT_INDEX
 
 
 @dataclass
@@ -57,8 +57,7 @@ def get_tag_value_list(source_tag: Iterable, attr: str):
 
 
 def get_group_tags(tag: Element) -> list:
-    """получение всех переменных контроллера"""
-    ALARM_SPLIT_INDEX = 1
+    """Получение всех переменных контроллера"""
     central_alarm_len = 35
     group_tag_names = []
     if tag.attrib['Name'] == 'Alarms' and len(tag) > central_alarm_len:
@@ -117,7 +116,7 @@ class KlogicXML:
         self.teall = '&lt;?xml version=&quot;1.0&quot; encoding=&quot;windows-1251&quot;?&gt;&lt;Elements&gt;&lt;Controls&gt;'
 
     def find_module(self):
-        """поиск протокола с контроллерами"""
+        """Поиск протокола с контроллерами"""
         protocols = self.parsed_xml.findall('.//Protocol')
         for protocol in protocols:
             for setting in protocol.iter('ProtCode'):
@@ -125,7 +124,7 @@ class KlogicXML:
                     self.module = protocol[MODULE_INDEX]
 
     def h_remove(self, attrs: Iterable):
-        """удлаение служебных символов в названии параметра"""
+        """Удаление служебных символов в названии параметра"""
         for group in self.module[FIRST_CONTR_INDEX:]:
             for tag in group[FIRST_TAG_INDEX:]:
                 for h in attrs:
@@ -134,13 +133,13 @@ class KlogicXML:
 
     def generate_id(self, exist_tags: Iterable) -> int:
         """Получение нового id"""
-        id = 1
+        tag_id = 1
         while any([
-            id in get_tag_value_list(exist_tags, 'id'),
-            id in self.new_ids
+            tag_id in get_tag_value_list(exist_tags, 'id'),
+            tag_id in self.new_ids
         ]):
-            id += 1
-        return id
+            tag_id += 1
+        return tag_id
 
     def check_new_tag(self, exist_tags: Iterable, tag_name: str) -> bool:
         """Проверка нового параметра"""
@@ -150,7 +149,7 @@ class KlogicXML:
         ])
 
     def create_new_tag(self, exist_tags: Iterable, group: Element, tag_name: str) -> Tag:
-        """содание нового тега"""
+        """Создание нового тега"""
         tag_attrs = NewTagAttrs(
             tag_id=self.generate_id(exist_tags),
             controller=group.attrib['Name'],
@@ -160,7 +159,7 @@ class KlogicXML:
         return Tag(tag_attrs)
 
     def update_new_lists(self, new_tag: Tag):
-        """добавление информации о новом теге в соответствующие списки"""
+        """Добавление информации о новом теге в соответствующие списки"""
         self.all_new_tags_attrs.append(new_tag.tag_attr)
         self.new_tag_names.append(new_tag.tag_attr.tag_name)
         self.new_ids.append(new_tag.tag_attr.tag_id)
@@ -321,7 +320,7 @@ class KlogicXML:
                 tree_insert(settings, index, 'TaskElements', self.teall)
 
     def noffl(self, good_tags: Iterable):
-        """Привязка входов к функциональном блокам noffl"""
+        """Привязка входов к функциональным блокам noffl"""
         kl_find = self.klogic_tree_find()
         groups = kl_find.Groups
         fsection = kl_find.fsection
