@@ -3,8 +3,8 @@ from typing import Iterable, List
 from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
 from dataclasses import dataclass
-from kxml.kaskadxml.kaskad_xml import (MODULE_INDEX, FIRST_TAG_INDEX, FIRST_CONTR_INDEX, FIRST_FB_INPUT_INDEX,
-                                       SETTINGS_INDEX, NAME_INDEX, ALARM_SPLIT_INDEX)
+from .klogic_indexes import (MODULE_INDEX, FIRST_TAG_INDEX, FIRST_CONTR_INDEX, FIRST_FB_INPUT_INDEX, SETTINGS_INDEX,
+                            NAME_INDEX, ALARM_SPLIT_INDEX)
 
 
 @dataclass

@@ -3,11 +3,11 @@ from typing import Iterable
 from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
 from dataclasses import dataclass
-from kxml.kaskadxml.kaskad_xml import (FIRST_CONTR_INDEX, FIRST_TAG_INDEX, SETTINGS_INDEX, ALARM_SPLIT_INDEX,
-                                       alrm, stations, ALRM_CODE_INDEX, ALRM_TEXT_INDEX, GROUP_ALARMS_INDEX,
-                                       GROUP_NAME_INDEX, EMPTY_GROUP_LEN, CONTR_NAME_INDEX, XO_TYPE_INDEX,
-                                       PRODUCT_INDEX, ALARM_INDEX, ALARM_ID_INDEX, FULLNAME_INDEX, STATION_ID_INDEX,
-                                       PASSPORT_TYPE_INDEX, GROUP_ID_INDEX, PASSPORT_ID_INDEX, VALUE_TYPE_INDEX)
+from .klogic_indexes import FIRST_CONTR_INDEX, FIRST_TAG_INDEX, SETTINGS_INDEX, ALARM_SPLIT_INDEX
+from .alrm import alrm, stations
+from .alarm_indexes import (ALRM_CODE_INDEX, ALRM_TEXT_INDEX, GROUP_ALARMS_INDEX, GROUP_NAME_INDEX, EMPTY_GROUP_LEN,
+                           CONTR_NAME_INDEX, XO_TYPE_INDEX, PRODUCT_INDEX, ALARM_INDEX, ALARM_ID_INDEX, FULLNAME_INDEX,
+                           STATION_ID_INDEX, PASSPORT_TYPE_INDEX, GROUP_ID_INDEX, PASSPORT_ID_INDEX, VALUE_TYPE_INDEX)
 
 
 @dataclass

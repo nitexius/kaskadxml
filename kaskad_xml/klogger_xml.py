@@ -3,10 +3,10 @@ from typing import Iterable
 from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
 from dataclasses import dataclass
-from kxml.kaskadxml.kaskad_xml import (FIRST_CONTR_INDEX, FIRST_TAG_INDEX, SETTINGS_INDEX, GROUPS_INDEX, GRP_NAME_INDEX,
-                                       OWNCFG_INDEX, PARAMS_INDEX, ZONE_INDEX, PARID_INDEX, STID_INDEX, TYPE_INDEX,
-                                       GRID_INDEX, PSID_INDEX, VALTYPE_INDEX, TYPENAME_INDEX, CIPHER_INDEX,
-                                       KLOGGER_NAME_INDEX, USEPREAGR_INDEX)
+from .klogic_indexes import FIRST_CONTR_INDEX, FIRST_TAG_INDEX, SETTINGS_INDEX
+from .klogger_indexes import (GROUPS_INDEX, GRP_NAME_INDEX, OWNCFG_INDEX, PARAMS_INDEX, ZONE_INDEX, PARID_INDEX,
+                             STID_INDEX, TYPE_INDEX, GRID_INDEX, PSID_INDEX, VALTYPE_INDEX, TYPENAME_INDEX,
+                             CIPHER_INDEX, KLOGGER_NAME_INDEX, USEPREAGR_INDEX)
 
 
 @dataclass
