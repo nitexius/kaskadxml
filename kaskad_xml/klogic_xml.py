@@ -3,8 +3,7 @@ from typing import Iterable, List
 from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
 from dataclasses import dataclass
-from .klogic_indexes import (MODULE_INDEX, FIRST_TAG_INDEX, FIRST_CONTR_INDEX, FIRST_FB_INPUT_INDEX, SETTINGS_INDEX,
-                            NAME_INDEX, ALARM_SPLIT_INDEX)
+from .indices import get_index
 
 
 @dataclass
@@ -61,10 +60,10 @@ def get_group_tags(tag: Element) -> list:
     central_alarm_len = 35
     group_tag_names = []
     if tag.attrib['Name'] == 'Alarms' and len(tag) > central_alarm_len:
-        for alarm_number in range(len(tag))[FIRST_TAG_INDEX:]:
+        for alarm_number in range(len(tag))[get_index('first_tag'):]:
             try:
                 group_tag_names.append(
-                    tag[alarm_number].attrib['Name'].split(f'{alarm_number}_')[ALARM_SPLIT_INDEX])
+                    tag[alarm_number].attrib['Name'].split(f'{alarm_number}_')[get_index('alarm_split')])
             except IndexError:
                 raise ErrorCentralAlarm('В группе Alarms у централи добавлены не все переменные')
     else:
@@ -90,7 +89,7 @@ def tree_insert(parent_group: Element, insert_index: int, child_group: str, text
 
 
 def update_inout_setting(inout: Element, setting_tag: str, text: str):
-    for setting in inout[SETTINGS_INDEX].iter(setting_tag):
+    for setting in inout[get_index('settings')].iter(setting_tag):
         setting.text = text
         print(setting.tag, text)
 
@@ -121,12 +120,12 @@ class KlogicXML:
         for protocol in protocols:
             for setting in protocol.iter('ProtCode'):
                 if setting.text == self.prot_code:
-                    self.module = protocol[MODULE_INDEX]
+                    self.module = protocol[get_index('module')]
 
     def h_remove(self, attrs: Iterable):
         """Удаление служебных символов в названии параметра"""
-        for group in self.module[FIRST_CONTR_INDEX:]:
-            for tag in group[FIRST_TAG_INDEX:]:
+        for group in self.module[get_index('first_contr'):]:
+            for tag in group[get_index('first_tag'):]:
                 for h in attrs:
                     if h in tag.attrib['Name']:
                         tag.attrib['Name'] = tag.attrib['Name'].replace(h, '')
@@ -166,9 +165,9 @@ class KlogicXML:
 
     def get_new_tags(self, exist_tags: Iterable):
         """Проверка на новые переменные"""
-        for Group in self.module[FIRST_CONTR_INDEX:]:
+        for Group in self.module[get_index('first_contr'):]:
             if not self.cental_alarms_flag:
-                for tag in Group[FIRST_TAG_INDEX:]:
+                for tag in Group[get_index('first_tag'):]:
                     for tag_name in get_group_tags(tag):
                         if tag_name != 'Not used':
                             if self.check_new_tag(exist_tags, tag_name):
@@ -186,7 +185,7 @@ class KlogicXML:
 
     def delete_empty_groups(self):
         """Удаление пустых групп"""
-        for Group in self.module[FIRST_CONTR_INDEX:]:
+        for Group in self.module[get_index('first_contr'):]:
             if len(Group) < 2:
                 print("Удалена пустая группа:", Group.attrib['Name'])
                 self.module.remove(Group)
@@ -194,18 +193,18 @@ class KlogicXML:
     def delete_tags(self, bad_tags: Iterable):
         """Удаление ненужных переменных"""
         central_alarm_len = 35
-        for Group in self.module[FIRST_CONTR_INDEX:]:
+        for Group in self.module[get_index('first_contr'):]:
             for tag in bad_tags:
-                for InOut in Group[FIRST_TAG_INDEX:]:
+                for InOut in Group[get_index('first_tag'):]:
                     if InOut.attrib['Name'] == tag['name'] and len(InOut) < central_alarm_len:
                         print(Group.attrib['Name'], InOut.attrib['Name'], len(InOut))
                         Group.remove(InOut)
 
     def add_comment(self):
         """Добавление комментария для оборудования"""
-        for group in self.module[FIRST_CONTR_INDEX:]:
+        for group in self.module[get_index('first_contr'):]:
             comm = group.attrib['Name'].replace('__', '..')
-            settings = group[SETTINGS_INDEX]
+            settings = group[get_index('settings')]
             for comment in settings.iter('UserComment'):
                 comment.text = str(comm)
 
@@ -216,12 +215,12 @@ class KlogicXML:
         for protocol in protocols:
             for setting in protocol.iter('ProtCode'):
                 if setting.text == self.prot_code:
-                    self.module = protocol[MODULE_INDEX]
+                    self.module = protocol[get_index('module')]
                     kl_find = KlogicAttrs(
-                        danfoss=protocol[SETTINGS_INDEX][NAME_INDEX],
-                        protocol_name=protocol[SETTINGS_INDEX][NAME_INDEX],
-                        gm=protocol[MODULE_INDEX][SETTINGS_INDEX][NAME_INDEX],
-                        Groups=protocol[MODULE_INDEX],
+                        danfoss=protocol[get_index('settings')][get_index('name')],
+                        protocol_name=protocol[get_index('settings')][get_index('name')],
+                        gm=protocol[get_index('module')][get_index('settings')][get_index('name')],
+                        Groups=protocol[get_index('module')],
                         fsection=self.parsed_xml.find('.//UserTask'),
                         task_name=self.parsed_xml.find('.//UserTask/Settings/Name'),
                         te=self.parsed_xml.find('.//TasksGroup0/UserTask/Settings'),
@@ -242,7 +241,7 @@ class KlogicXML:
                 self.module[group].attrib['Name'] != 'Дата и время'
             ]):
                 shift_attr.all_lens.add(len(self.module[group]))
-                for setting in self.module[group][FIRST_TAG_INDEX].iter('KId'):
+                for setting in self.module[group][get_index('first_tag')].iter('KId'):
                     contr_attr = GroupAttr(
                         name=self.module[group].attrib['Name'],
                         len_group=len(self.module[group]),
@@ -277,12 +276,12 @@ class KlogicXML:
                     inout = groups[fb_input + num_of_inputs * h]
                     contr = inout.attrib['Name']
                     self.tag_noffl_flag = False
-                    for tag in inout[FIRST_TAG_INDEX:]:
+                    for tag in inout[get_index('first_tag'):]:
                         if self.tag_noffl_flag:  # проверка на тот случай, если контроллер уже добавлен в ФБ
                             break
                         tag_name = self.get_noffl_tag(tag, good_tags)
                         if tag_name:
-                            self.tag_settings.append(tag[SETTINGS_INDEX])
+                            self.tag_settings.append(tag[get_index('settings')])
                             st = f'{protocol_name.text}.{gm.text}.{contr}.{tag_name}'
                             self.tags_path.append(st)
             else:
@@ -331,13 +330,13 @@ class KlogicXML:
         num_of_inputs = 10  # Количество входов в каждом Функциональном блоке noffl
 
         for fb in fsection[FIRST_FB_INDEX:]:
-            fblock = fb[SETTINGS_INDEX][NAME_INDEX]  # Название функц.блока
+            fblock = fb[get_index('settings')][get_index('name')]  # Название функц.блока
             for h in range(0, 15):
                 if fblock.text == f'noffl {h + 1}':
                     self.num_of_fb += 1  # Подсчет функц.блоков noffl
                     self.get_noffl_tag_info(fb, h, good_tags)
 
-                    for noffl_input in fb[FIRST_FB_INPUT_INDEX:]:
+                    for noffl_input in fb[get_index('first_fb_input'):]:
                         if (self.noffl_contr + 3) < len(
                                 groups):  # len(groups) - общее колличество групп в Klogic XML, включая служебные(3 шт.)
                             if check_noffl_input(noffl_input):
@@ -348,7 +347,7 @@ class KlogicXML:
                                 ''' Подключение тегов на входы функционального блока '''
                                 tree_insert(self.tag_settings[self.noffl_contr], TAG_CONNECTED_INDEX, 'Connected',
                                             str_link)
-                                tree_insert(noffl_input[SETTINGS_INDEX], FB_INPUT_CONNECTED_INDEX, 'Connected',
+                                tree_insert(noffl_input[get_index('settings')], FB_INPUT_CONNECTED_INDEX, 'Connected',
                                             self.tags_path[self.noffl_contr])
 
                                 print(str_link, self.tags_path[self.noffl_contr])

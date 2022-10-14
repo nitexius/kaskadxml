@@ -2,24 +2,8 @@ import pathlib
 from typing import Iterable
 from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
-from dataclasses import dataclass
-from .klogic_indexes import FIRST_CONTR_INDEX, FIRST_TAG_INDEX, SETTINGS_INDEX
-from .klogger_indexes import (GROUPS_INDEX, GRP_NAME_INDEX, OWNCFG_INDEX, PARAMS_INDEX, ZONE_INDEX, PARID_INDEX,
-                             STID_INDEX, TYPE_INDEX, GRID_INDEX, PSID_INDEX, VALTYPE_INDEX, TYPENAME_INDEX,
-                             CIPHER_INDEX, KLOGGER_NAME_INDEX, USEPREAGR_INDEX)
-
-
-@dataclass
-class KlogicAttrs:
-    danfoss: Element
-    protocol_name: Element
-    gm: Element
-    Groups: Element
-    fsection: Element
-    task_name: Element
-    te: Element
-    klogic_name: Element
-    syst_num: Element
+from .klogic_xml import KlogicAttrs
+from .indices import get_index
 
 
 def tree_insert(parent_group: Element, insert_index: int, child_group: str, text):
@@ -69,29 +53,30 @@ class KloggerXML:
         """Добавление нового контроллера в дерево конфигурации"""
         tree_insert(self.parsed_xml.find('.//Groups'), contr_index, f'Grp{contr_index}', False)
         parent_group = self.parsed_xml.find(f'.//Grp{contr_index}')
-        tree_insert(parent_group, GRP_NAME_INDEX, 'Name', contr)
-        tree_insert(parent_group, OWNCFG_INDEX, 'OwnCfg', 'false')
-        tree_insert(parent_group, PARAMS_INDEX, f'Params{contr_index}', False)
+        tree_insert(parent_group, get_index('grp_name'), 'Name', contr)
+        tree_insert(parent_group, get_index('own_config'), 'OwnCfg', 'false')
+        tree_insert(parent_group, get_index('params'), f'Params{contr_index}', False)
 
     def get_bdtp_tags(self, module: Element, bdtp_tags: Iterable):
         """Получение всех архивируемых параметров, с разделением по контроллерам"""
-        for contr_index in range(len(module))[FIRST_CONTR_INDEX:]:
+        for contr_index in range(len(module))[get_index('first_contr'):]:
             self.all_groups.append(contr_index)
             contr = module[contr_index].attrib['Name']
             self.insert_grp_config(contr_index, contr)
             tag_number = 0
             group_tags = {}
-            for inout in module[contr_index][FIRST_TAG_INDEX:]:
+            for inout in module[contr_index][get_index('first_tag'):]:
                 for bdtp_tag in bdtp_tags:
                     tag = {}
                     if inout.attrib['Name'] == bdtp_tag['name']:
                         tag_name = inout.attrib['Name']
                         tag['Name'] = tag_name
-                        for setting in inout[SETTINGS_INDEX].iter('KId'):
+                        for setting in inout[get_index('settings')].iter('KId'):
                             tag['KId'] = setting.text
-                        for setting in inout[SETTINGS_INDEX].iter('PropList'):
+                        for setting in inout[get_index('settings')].iter('PropList'):
                             tag['PropList'] = setting.attrib['TagType']
-                        tag['st'] = f'{self.klogic_name.text}.{self.protocol_name.text}.{self.gm.text}.{contr}.{tag_name}'
+                        tag[
+                            'st'] = f'{self.klogic_name.text}.{self.protocol_name.text}.{self.gm.text}.{contr}.{tag_name}'
                         group_tags[tag_number] = tag
                         tag_number += 1
             self.all_bdtp_tags[contr_index] = group_tags
@@ -114,7 +99,7 @@ class KloggerXML:
 
     def bdtp(self, module: Element, bdtp_tags: Iterable) -> str:
         """Формирование klogger.xml"""
-        tree_insert(self.klogger_root, GROUPS_INDEX, 'Groups', False)
+        tree_insert(self.klogger_root, get_index('groups_index'), 'Groups', False)
         self.get_bdtp_tags(module, bdtp_tags)
 
         for grp in self.all_groups:
@@ -122,17 +107,17 @@ class KloggerXML:
                 self.all_par.add(par)
                 tree_insert(self.parsed_xml.find(f'.//Params{grp}'), par, f'Par{par}', False)
                 parent_group = self.parsed_xml.find(f'.//Params{grp}/Par{par}')
-                tree_insert(parent_group, ZONE_INDEX, 'Zone', f'{self.klogic_name.text}')
-                tree_insert(parent_group, PARID_INDEX, 'ParID', f'{self.bdtp_id}')
-                tree_insert(parent_group, STID_INDEX, 'StId', f'{self.station_id}')
-                tree_insert(parent_group, TYPE_INDEX, 'Type', '222')
-                tree_insert(parent_group, GRID_INDEX, 'GrId', f'{self.syst_num.text}')
-                tree_insert(parent_group, PSID_INDEX, 'PsId', self.all_bdtp_tags[grp][par]['KId'])
-                tree_insert(parent_group, VALTYPE_INDEX, 'ValType', self.get_valtype(grp, par))
-                tree_insert(parent_group, TYPENAME_INDEX, 'TypeName', self.get_valtype(grp, par))
-                tree_insert(parent_group, CIPHER_INDEX, 'Cipher', str(self.all_bdtp_tags[grp][par]['Name']))
-                tree_insert(parent_group, KLOGGER_NAME_INDEX, 'Name', self.all_bdtp_tags[grp][par]['st'])
-                tree_insert(parent_group, USEPREAGR_INDEX, 'UsePreAgr', 'false')
+                tree_insert(parent_group, get_index('zone'), 'Zone', f'{self.klogic_name.text}')
+                tree_insert(parent_group, get_index('parid'), 'ParID', f'{self.bdtp_id}')
+                tree_insert(parent_group, get_index('stid'), 'StId', f'{self.station_id}')
+                tree_insert(parent_group, get_index('type'), 'Type', '222')
+                tree_insert(parent_group, get_index('grid'), 'GrId', f'{self.syst_num.text}')
+                tree_insert(parent_group, get_index('psid'), 'PsId', self.all_bdtp_tags[grp][par]['KId'])
+                tree_insert(parent_group, get_index('valtype'), 'ValType', self.get_valtype(grp, par))
+                tree_insert(parent_group, get_index('typename'), 'TypeName', self.get_valtype(grp, par))
+                tree_insert(parent_group, get_index('cipher'), 'Cipher', str(self.all_bdtp_tags[grp][par]['Name']))
+                tree_insert(parent_group, get_index('klogger_name'), 'Name', self.all_bdtp_tags[grp][par]['st'])
+                tree_insert(parent_group, get_index('usepreagr'), 'UsePreAgr', 'false')
                 self.bdtp_id += 1
 
         self.remove_service_attrs('.//Groups', 'Grp', self.all_groups)
