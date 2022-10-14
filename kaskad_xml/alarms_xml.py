@@ -102,16 +102,21 @@ def get_measure_units_index(alarm_tag: AlarmTag) -> int:
     return index
 
 
+def get_central_tags(tags: Iterable) -> list:
+    central_tags = []
+    for tag in tags:
+        if tag['alarm_id'] == 'central':
+            central_tags.append(tag)
+    return central_tags
+
+
 class AlarmsXML:
     """ Класс для  AlarmsXML"""
-    def __init__(self, xml_path: pathlib.Path, tags: Iterable, central_tags: Iterable, kl_find: KlogicAttrs,
-                 station_id: int, products: Iterable):
+    def __init__(self, xml_path: pathlib.Path, kl_find: KlogicAttrs, station_id: int, products: Iterable):
         self.xml_path = xml_path
         self.parsed_xml = ElementTree.parse(self.xml_path)
         self.alarm_root = self.parsed_xml.getroot()
         self.group_item = self.parsed_xml.find('.//GroupItem')
-        self.tags = tags
-        self.central_tags = central_tags
         self.station_id = station_id
         self.products = products
         self.klogic_name = kl_find.klogic_name
@@ -178,14 +183,14 @@ class AlarmsXML:
                 )
         return result
 
-    def check_central(self, element: Element):
+    def check_central(self, element: Element, central_tags: list):
         """Определение контроллера, как контроллер централи"""
         self.central_contr = False
         for in_out in element[FIRST_TAG_INDEX:]:
             if self.central_contr:
                 break
             else:
-                for central_tag in self.central_tags:
+                for central_tag in central_tags:
                     if in_out.attrib['Name'] == central_tag['name']:
                         self.central_contr = True
                         break
@@ -339,14 +344,15 @@ class AlarmsXML:
                     child.tag = child.tag.replace(f'{index}{group_name}', f'{group_name}')
                     child.tag = child.tag.replace('tempAlarms', 'Alarms')
 
-    def alarm(self, module: Element):
+    def alarm(self, module: Element, tags: Iterable):
         """Формирование alarms.xml"""
         self.rename_main_group()
+        central_tags = get_central_tags(tags)
         for group in range(len(module))[FIRST_CONTR_INDEX:]:
             cutout_flag = False
-            self.check_central(module[group])
+            self.check_central(module[group], central_tags)
             for in_out in module[group][FIRST_TAG_INDEX:]:
-                for tag in self.tags:
+                for tag in tags:
 
                     if in_out.attrib['Name'] == 'Alarms':
                         for alarm_number in range(len(in_out))[FIRST_TAG_INDEX:]:
