@@ -125,15 +125,13 @@ def index(request):
                         new_xml_path = get_new_alarm_xml_path(default_alarm_xml_path, gmget)
                         alarm_xml = AlarmsXML(
                             new_xml_path,
-                            GoodTags.get_good_tags_values(),
-                            GoodTags.get_central_tags(),
                             klogic_xml.klogic_tree_find(),
                             station_id,
                             Cutout.get_products_values()
                         )
                         try:
                             print(alarm_xml.group_item.tag)
-                            context['text_al'] = alarm_xml.alarm(klogic_xml.module)
+                            context['text_al'] = alarm_xml.alarm(klogic_xml.module, GoodTags.get_good_tags_values())
                             alarm_xml.write('')
                         except AttributeError:
                             context['text_al'] = "Alarm XML: Неправильный формат"
