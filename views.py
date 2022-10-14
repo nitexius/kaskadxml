@@ -1,16 +1,10 @@
-import shutil, pathlib
-from pathlib import Path
-from django.shortcuts import render
-from django.db.models.query import QuerySet
+import pathlib
+import shutil
 from typing import Iterable
-from xml.etree import ElementTree
-from xml.etree.ElementTree import ElementTree as ET_class
-from .models import HistoryAttr, GoodTags, BadTags, Klogic, Klogger, Alarms, Cutout, NewTags, Shift
+from django.shortcuts import render
 from .forms import KlogicForm
-from .alrm import alrm, stations
-from .klogic_xml import KlogicXML, KlogicAttrs
-from .klogger_xml import KloggerXML
-from .alarms_xml import AlarmsXML
+from .models import HistoryAttr, GoodTags, BadTags, Klogic, Klogger, Alarms, Cutout, NewTags, Shift
+from kxml.kaskadxml.kaskad_xml import AlarmsXML, KloggerXML, KlogicXML
 
 
 def get_tags() -> Iterable:
