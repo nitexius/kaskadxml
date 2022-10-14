@@ -4,7 +4,7 @@ from typing import Iterable
 from django.shortcuts import render
 from .forms import KlogicForm
 from .models import HistoryAttr, GoodTags, BadTags, Klogic, Klogger, Alarms, Cutout, NewTags, Shift
-from kxml.kaskadxml.kaskad_xml import AlarmsXML, KloggerXML, KlogicXML
+from .kaskad_xml import AlarmsXML, KloggerXML, KlogicXML
 
 
 def get_tags() -> Iterable:

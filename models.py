@@ -1,5 +1,5 @@
 from django.db import models
-from .alrm import alrm, stations
+from .kaskad_xml import alrm, stations
 
 
 class Klogic(models.Model):
