@@ -74,19 +74,22 @@ class KloggerXML:
             for inout in module[contr_index][get_index('first_tag'):]:
                 for bdtp_tag in bdtp_tags:
                     tag = {}
-                    if inout.attrib['Name'] == bdtp_tag['name'] and not cutout_flag:
-                        tag_name = inout.attrib['Name']
-                        tag['Name'] = tag_name
-                        for setting in inout[get_index('settings')].iter('KId'):
-                            tag['KId'] = setting.text
-                        for setting in inout[get_index('settings')].iter('PropList'):
-                            tag['PropList'] = setting.attrib['TagType']
-                        tag[
-                            'st'] = f'{self.klogic_name.text}.{self.protocol_name.text}.{self.gm.text}.{contr}.{tag_name}'
-                        group_tags[tag_number] = tag
-                        tag_number += 1
-                        if bdtp_tag['alarm_id'] == 'Cutout':
-                            cutout_flag = True
+                    if inout.attrib['Name'] == bdtp_tag['name']:
+                        if bdtp_tag['alarm_id'] == 'Cutout' and cutout_flag:
+                            continue
+                        else:
+                            tag_name = inout.attrib['Name']
+                            tag['Name'] = tag_name
+                            for setting in inout[get_index('settings')].iter('KId'):
+                                tag['KId'] = setting.text
+                            for setting in inout[get_index('settings')].iter('PropList'):
+                                tag['PropList'] = setting.attrib['TagType']
+                            tag[
+                                'st'] = f'{self.klogic_name.text}.{self.protocol_name.text}.{self.gm.text}.{contr}.{tag_name}'
+                            group_tags[tag_number] = tag
+                            tag_number += 1
+                            if bdtp_tag['alarm_id'] == 'Cutout':
+                                cutout_flag = True
             self.all_bdtp_tags[contr_index] = group_tags
 
     def get_valtype(self, grp_index: int, par_index: int) -> str:

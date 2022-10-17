@@ -174,7 +174,6 @@ class AlarmsXML:
                         cutout='18',
                         xo_type=prod['xo_type']
                     )
-                    print(name, result)
         return result
 
     def check_central(self, element: Element, central_tags: list):
