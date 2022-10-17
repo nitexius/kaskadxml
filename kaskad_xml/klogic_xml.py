@@ -94,6 +94,14 @@ def update_inout_setting(inout: Element, setting_tag: str, text: str):
         print(setting.tag, text)
 
 
+def get_node(group: Element) -> str:
+    """Получение адреса контроллера"""
+    node = 0
+    for setting in group[get_index('first_tag')].iter('PropList'):
+        node = setting.attrib['Node']
+    return node
+
+
 class KlogicXML:
     """ Класс для  KlogicXML"""
 
@@ -203,10 +211,13 @@ class KlogicXML:
     def add_comment(self):
         """Добавление комментария для оборудования"""
         for group in self.module[get_index('first_contr'):]:
-            comm = group.attrib['Name'].replace('__', '..')
+            try:
+                comm = group.attrib['Name'].split('__')[get_index('contr_name')]
+            except KeyError:
+                comm = group.attrib['Name']
             settings = group[get_index('settings')]
             for comment in settings.iter('UserComment'):
-                comment.text = str(comm)
+                comment.text = f'{comm}..{get_node(group)}'
 
     def klogic_tree_find(self) -> KlogicAttrs:
         """Получение необходимых атрибутов из klogic.xml"""

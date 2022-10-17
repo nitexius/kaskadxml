@@ -5,7 +5,7 @@ from xml.etree.ElementTree import Element
 from dataclasses import dataclass
 from .klogic_xml import KlogicAttrs
 from .klogic_indexes import FIRST_CONTR_INDEX, FIRST_TAG_INDEX, SETTINGS_INDEX, ALARM_SPLIT_INDEX
-from .alrm import alrm, stations
+from .alrm import alrm, stations, xo_types
 from .indices import get_index
 
 
@@ -147,6 +147,7 @@ class AlarmsXML:
             product = name.split('_')[get_index('product')]
             if any([
                 result.xo_type == 'Б',
+                result.xo_type == 'БШ',
                 result.xo_type == 'НК'
             ]):
                 result.cutout = '-20'
@@ -164,11 +165,16 @@ class AlarmsXML:
                             else:
                                 result.cutout = self.check_cutout(product)
         except IndexError:
-            if name == 'Серверная':
-                result = CutoutAttrs(
-                    cutout='18',
-                    xo_type='Серверная'
-                )
+            for prod in self.products:
+                if name == prod['name'] and any([
+                    prod['xo_type'] == 'server',
+                    prod['xo_type'] == 'central_room'
+                ]):
+                    result = CutoutAttrs(
+                        cutout='18',
+                        xo_type=prod['xo_type']
+                    )
+                    print(name, result)
         return result
 
     def check_central(self, element: Element, central_tags: list):
@@ -225,7 +231,7 @@ class AlarmsXML:
         if tag_alarm_id == 'A1' and any([
             xo_type == 'СК',
             xo_type == 'НК',
-            xo_type == 'Серверная'
+            xo_type == 'server',
         ]):
             tag_alarm = 'A1. Высокая температура К'
             tag_alarm_id = f'{tag_alarm_id}K'

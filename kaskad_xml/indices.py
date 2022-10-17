@@ -36,7 +36,7 @@ indices = {
     'first_fb_input': 1,
     'settings': 0,
     'name': 0,
-    'alarm_split': 1
+    'alarm_split': 1,
 }
 
 

@@ -29,7 +29,7 @@ class KloggerXML:
         self.all_bdtp_tags = {}
         self.bdtp_id = 1
         self.all_groups = []
-        self.all_par = set()
+        self.all_par = []
 
     def delete_old_config(self):
         """Удаление старой конфигурации klogger"""
@@ -42,9 +42,9 @@ class KloggerXML:
             print('Конфигурация БДТП пуста')
             pass
 
-    def remove_service_attrs(self, parent_group: str, group_name: str, iterables: Iterable):
+    def remove_service_attrs(self, parent_group: str, group_name: str, iterables: list):
         """Удаление служебных символов в названии групп"""
-        for index in iterables:
+        for index in reversed(iterables):
             for parent in self.parsed_xml.findall(parent_group):
                 for child in parent:
                     child.tag = child.tag.replace(f'{group_name}{index}', f'{group_name}')
@@ -61,14 +61,20 @@ class KloggerXML:
         """Получение всех архивируемых параметров, с разделением по контроллерам"""
         for contr_index in range(len(module))[get_index('first_contr'):]:
             self.all_groups.append(contr_index)
-            contr = module[contr_index].attrib['Name']
+            # contr = module[contr_index].attrib['Name']
+
+            contr = contr_index
+            for setting in module[contr_index][get_index('settings')].iter('UserComment'):
+                contr = setting.text
+
             self.insert_grp_config(contr_index, contr)
             tag_number = 0
             group_tags = {}
+            cutout_flag = False
             for inout in module[contr_index][get_index('first_tag'):]:
                 for bdtp_tag in bdtp_tags:
                     tag = {}
-                    if inout.attrib['Name'] == bdtp_tag['name']:
+                    if inout.attrib['Name'] == bdtp_tag['name'] and not cutout_flag:
                         tag_name = inout.attrib['Name']
                         tag['Name'] = tag_name
                         for setting in inout[get_index('settings')].iter('KId'):
@@ -79,6 +85,8 @@ class KloggerXML:
                             'st'] = f'{self.klogic_name.text}.{self.protocol_name.text}.{self.gm.text}.{contr}.{tag_name}'
                         group_tags[tag_number] = tag
                         tag_number += 1
+                        if bdtp_tag['alarm_id'] == 'Cutout':
+                            cutout_flag = True
             self.all_bdtp_tags[contr_index] = group_tags
 
     def get_valtype(self, grp_index: int, par_index: int) -> str:
@@ -104,7 +112,7 @@ class KloggerXML:
 
         for grp in self.all_groups:
             for par in range(len(self.all_bdtp_tags[grp])):
-                self.all_par.add(par)
+                self.all_par.append(par)
                 tree_insert(self.parsed_xml.find(f'.//Params{grp}'), par, f'Par{par}', False)
                 parent_group = self.parsed_xml.find(f'.//Params{grp}/Par{par}')
                 tree_insert(parent_group, get_index('zone'), 'Zone', f'{self.klogic_name.text}')

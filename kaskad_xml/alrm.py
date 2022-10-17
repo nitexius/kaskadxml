@@ -181,3 +181,9 @@ stations = (
     ('34', 'SCADA-XO4'),
     ('35', 'SCADA-XO5'),
 )
+
+xo_types = (
+    ('None', '-'),
+    ('server', 'Серверная'),
+    ('central_room', 'МашЗал'),
+)
