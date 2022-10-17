@@ -177,10 +177,9 @@ class KlogicXML:
             if not self.cental_alarms_flag:
                 for tag in Group[get_index('first_tag'):]:
                     for tag_name in get_group_tags(tag):
-                        if tag_name != 'Not used':
-                            if self.check_new_tag(exist_tags, tag_name):
-                                new_tag = self.create_new_tag(exist_tags, Group, tag_name)
-                                self.update_new_lists(new_tag)
+                        if tag_name != 'Not used' and self.check_new_tag(exist_tags, tag_name):
+                            new_tag = self.create_new_tag(exist_tags, Group, tag_name)
+                            self.update_new_lists(new_tag)
             else:
                 break
 
