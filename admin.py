@@ -61,8 +61,8 @@ class CutoutResource(resources.ModelResource):
 
 class CutoutAdmin(ImportExportModelAdmin):
     resource_class = CutoutResource
-    list_display = ['name', 'cutout']
-    search_fields = ['name', 'cutout']
+    list_display = ['name', 'cutout', 'xo_type']
+    search_fields = ['name', 'cutout', 'xo_type']
 
 
 admin.site.register(Cutout, CutoutAdmin)
