@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from .klogic_xml import KlogicAttrs
 from .klogic_indexes import FIRST_CONTR_INDEX, FIRST_TAG_INDEX, SETTINGS_INDEX, ALARM_SPLIT_INDEX
 from .alrm import alrm, stations, xo_types
-from .indices import get_index
+from .indices import get_index, get_const
 
 
 @dataclass
@@ -132,13 +132,13 @@ class AlarmsXML:
                 cutout = product['cutout']
                 break
             else:
-                cutout = '-50'
+                cutout = str(get_const('new_product_cutout'))
         return cutout
 
     def cutout(self, contr: str) -> CutoutAttrs:
         """Получение значения уставки и типа оборудования для контроллера"""
         result = CutoutAttrs(
-            cutout='-50',
+            cutout=str(get_const('new_product_cutout')),
             xo_type='None'
         )
         name = contr.split('__')[get_index('contr_name')]
@@ -150,7 +150,7 @@ class AlarmsXML:
                 result.xo_type == 'БШ',
                 result.xo_type == 'НК'
             ]):
-                result.cutout = '-20'
+                result.cutout = str(get_const('nt_cutout'))
             else:
                 for prod in self.products:
                     if name == prod['name']:
@@ -158,10 +158,10 @@ class AlarmsXML:
                         break
                     else:
                         if result.xo_type == 'СК':
-                            result.cutout = '0'
+                            result.cutout = str(get_const('stk_cutout'))
                         else:
                             if result.xo_type == 'Ц':
-                                result.cutout = '12'
+                                result.cutout = str(get_const('ceh_cutout'))
                             else:
                                 result.cutout = self.check_cutout(product)
         except IndexError:
@@ -171,7 +171,7 @@ class AlarmsXML:
                     prod['xo_type'] == 'central_room'
                 ]):
                     result = CutoutAttrs(
-                        cutout='18',
+                        cutout=str(get_const('server_cutout')),
                         xo_type=prod['xo_type']
                     )
         return result
@@ -239,14 +239,14 @@ class AlarmsXML:
             cutout = self.cutout(alarm_tag.alarm_tag_attr.contr).cutout
             tag_alarm = f'{cutout}c'
             tag_alarm_id = f'{tag_alarm_id}{tag_alarm}'
-            if cutout == '-50':
+            if cutout == str(get_const('new_product_cutout')):
                 self.new_product.add(alarm_tag.alarm_tag_attr.contr)
         else:
             if tag_alarm_id == 'A13-high-lim-air':
                 cutout = self.cutout(alarm_tag.alarm_tag_attr.contr).cutout
                 tag_alarm = f'{cutout}a'
                 tag_alarm_id = f'{tag_alarm_id}{tag_alarm}'
-                if cutout == '-50':
+                if cutout == str(get_const('new_product_cutout')):
                     self.new_product.add(alarm_tag.alarm_tag_attr.contr)
 
         return AlarmAttrs(
@@ -392,7 +392,7 @@ class AlarmsXML:
             return "Alarm XML: Обработка завершена"
 
     def write(self, xml_path: pathlib.Path):
-        if xml_path == '':
+        if not xml_path:
             xml_path = self.xml_path
         print(xml_path)
         self.parsed_xml.write(str(xml_path), encoding='UTF-8')

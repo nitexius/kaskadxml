@@ -61,9 +61,8 @@ class KloggerXML:
         """Получение всех архивируемых параметров, с разделением по контроллерам"""
         for contr_index in range(len(module))[get_index('first_contr'):]:
             self.all_groups.append(contr_index)
-            # contr = module[contr_index].attrib['Name']
-
             contr = contr_index
+
             for setting in module[contr_index][get_index('settings')].iter('UserComment'):
                 contr = setting.text
 
@@ -71,6 +70,7 @@ class KloggerXML:
             tag_number = 0
             group_tags = {}
             cutout_flag = False
+
             for inout in module[contr_index][get_index('first_tag'):]:
                 for bdtp_tag in bdtp_tags:
                     tag = {}
@@ -138,7 +138,7 @@ class KloggerXML:
         return "Klogger XML: Обработка завершена"
 
     def write(self, xml_path: pathlib.Path):
-        if xml_path == '':
+        if not xml_path:
             xml_path = self.xml_path
         print(xml_path)
         self.parsed_xml.write(xml_path, encoding='UTF-8')
