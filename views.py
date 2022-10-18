@@ -1,10 +1,14 @@
 import pathlib
 import shutil
-from typing import Iterable
+from typing import Iterable, List
 from django.shortcuts import render
 from .forms import KlogicForm
 from .models import HistoryAttr, GoodTags, BadTags, Klogic, Klogger, Alarms, Cutout, NewTags, Shift
-from .kaskad_xml import AlarmsXML, KloggerXML, KlogicXML
+from .kaskad_xml import AlarmsXML, KloggerXML, KlogicXML, ErrorMissingNofflTag
+
+
+def get_tag_name(tag):
+    return tag
 
 
 def get_tags() -> Iterable:
@@ -80,7 +84,8 @@ def index(request):
                 print(klogic_xml.module.tag)
                 klogic_xml.h_remove(HistoryAttr.get_h_attrs())
                 NewTags.delete_new_tags_all()
-                new_tags = klogic_xml.set_new_tags(get_tags())
+                new_tags = klogic_xml.set_new_tags(get_tags
+                                                   ())
                 # Module = klogic_xml.module
             except AttributeError:
                 context['text_kl'] = "Klogic XML: Неправильный формат"
@@ -97,10 +102,14 @@ def index(request):
                 context['text'] = "Новые переменные:"
                 context['len_new_tags'] = len(new_tags)
             else:
+                context['text_kl'] = "Klogic XML: Обработка завершена"
                 klogic_xml.delete_empty_groups()
                 klogic_xml.delete_tags(BadTags.get_bad_tags_values())
                 klogic_xml.add_comment()
-                klogic_xml.noffl(GoodTags.get_good_tags_values())
+                try:
+                    klogic_xml.set_noffl(GoodTags.get_good_tags_values())
+                except ErrorMissingNofflTag:
+                    context['text_kl'] = 'Klogic XML: У контроллеров не заданы параметры для ФБ noffl'
                 klogic_xml.write('')
                 shift_create(klogic_xml, gmget)
                 if bdtp_checkbox:
@@ -137,7 +146,5 @@ def index(request):
                             context['text_al'] = "Alarm XML: Неправильный формат"
                     except (Alarms.DoesNotExist, FileNotFoundError):
                         context['text_al'] = "Alarm XML не найден"
-
-                context['text_kl'] = "Klogic XML: Обработка завершена"
 
     return render(request, 'xoxml/index.html', context)

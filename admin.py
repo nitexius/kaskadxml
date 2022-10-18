@@ -17,7 +17,7 @@ class GoodTagsResource(resources.ModelResource):
         model = GoodTags
 
 
-class GoodTagsAdmin(ImportExportActionModelAdmin):
+class GoodTagsAdmin(ImportExportModelAdmin):
     resource_class = GoodTagsResource
     list_display = ['id', 'name', 'alarm_id', 'bdtp', 'noffl']
     search_fields = ['id', 'name', 'alarm_id']
