@@ -120,7 +120,7 @@ def index(request):
                         try:
                             print(klogger_xml.db_version.tag)
                             klogger_xml.delete_old_config()
-                            context['text_bdtp'] = klogger_xml.bdtp(klogic_xml.module, GoodTags.get_bdtp_tags())
+                            context['text_bdtp'] = klogger_xml.set_klogger_xml(klogic_xml.module, GoodTags.get_bdtp_tags())
                             klogger_xml.write('')
                         except AttributeError:
                             context['text_bdtp'] = "Klogger XML: Неправильный формат"
@@ -140,7 +140,7 @@ def index(request):
                         )
                         try:
                             print(alarm_xml.group_item.tag)
-                            context['text_al'] = alarm_xml.alarm(klogic_xml.module, GoodTags.get_good_tags_values())
+                            context['text_al'] = alarm_xml.set_alarm_xml(klogic_xml.module, GoodTags.get_good_tags_values())
                             alarm_xml.write('')
                         except AttributeError:
                             context['text_al'] = "Alarm XML: Неправильный формат"
