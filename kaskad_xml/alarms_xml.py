@@ -339,7 +339,7 @@ class AlarmsXML:
                     child.tag = child.tag.replace(f'{index}{group_name}', f'{group_name}')
                     child.tag = child.tag.replace('tempAlarms', 'Alarms')
 
-    def alarm(self, module: Element, tags: Iterable):
+    def set_alarm_xml(self, module: Element, tags: Iterable):
         """Формирование alarms.xml"""
         self.rename_main_group()
         central_tags = get_central_tags(tags)

@@ -59,18 +59,18 @@ def get_tag_value_list(source_tag: Iterable, attr: str):
         yield tag[attr]
 
 
-def get_group_tags(group: Element) -> List[str]:
+def get_group_tags(tag_groups: Element) -> List[str]:
     """Получение всех переменных контроллера"""
     group_tag_names = []
-    if group.attrib['Name'] == 'Alarms' and len(group) > get_const('central_alarm_len'):
-        for alarm_number in range(len(group))[get_index('first_tag'):]:
+    if tag_groups.attrib['Name'] == 'Alarms' and len(tag_groups) > get_const('central_alarm_len'):
+        for alarm_number in range(len(tag_groups))[get_index('first_tag'):]:
             try:
                 group_tag_names.append(
-                    group[alarm_number].attrib['Name'].split(f'{alarm_number}_')[get_index('alarm_split')])
+                    tag_groups[alarm_number].attrib['Name'].split(f'{alarm_number}_')[get_index('alarm_split')])
             except IndexError:
                 raise ErrorCentralAlarm('В группе Alarms у централи добавлены не все переменные')
     else:
-        group_tag_names.append(group.attrib['Name'])
+        group_tag_names.append(tag_groups.attrib['Name'])
     return group_tag_names
 
 
@@ -102,14 +102,6 @@ def get_node(group: Element) -> str:
 def get_all_input_number(fb_input: int, noffl_number: int) -> int:
     """Получение текущего номера входа ФБ noffl, с учетом всех ФБ noffl"""
     return fb_input + get_const('num_of_inputs') * noffl_number
-
-
-# def get_noffl_tag(inout: Element, good_tags: Iterable) -> Element:
-#     """Поиск параметра noffl"""
-#     for tag in inout[get_index('first_tag'):]:
-#         for good_tag in good_tags:
-#             if good_tag['noffl'] and tag.attrib['Name'] == good_tag['name']:
-#                 return tag
 
 
 def filter_smart_divide_out(inout: Element) -> bool:
@@ -165,14 +157,6 @@ class KlogicXML:
         for protocol in protocols:
             self.module = protocol[get_index('module')]
 
-    # def find_module(self):
-    #     """Поиск протокола с контроллерами"""
-    #     protocols = self.parsed_xml.findall('.//Protocol')
-    #     for protocol in protocols:
-    #         for setting in protocol.iter('ProtCode'):
-    #             if setting.text == self.prot_code:
-    #                 self.module = protocol[get_index('module')]
-
     def filter_h_attrs(self, tag) -> Element:
         """Фильтр служебных символов (H_xxx)"""
         if self.checked_attr in tag.attrib['Name']:
@@ -185,12 +169,6 @@ class KlogicXML:
                 tags = filter(self.filter_h_attrs, group[get_index('first_tag'):])
                 for tag in tags:
                     tag.attrib['Name'] = tag.attrib['Name'].replace(self.checked_attr, '')
-
-        # for group in self.module[get_index('first_contr'):]:
-        #     for tag in group[get_index('first_tag'):]:
-        #         for h in attrs:
-        #             if h in tag.attrib['Name']:
-        #                 tag.attrib['Name'] = tag.attrib['Name'].replace(h, '')
 
     def generate_id(self, exist_tags: Iterable) -> int:
         """Получение нового id"""
@@ -385,13 +363,9 @@ class KlogicXML:
             if inout == 'break':
                 break
             contr = inout.attrib['Name']
-            # noffl_tag = get_noffl_tag(inout, good_tags)
             noffl_tag = self.get_noffl_tag(inout, good_tags)
             self.append_tag_settings(noffl_tag)
             self.append_tags_path(noffl_tag, contr)
-            # if noffl_tag:   # Это действие должно выполняться в цикле, иначе не работает привязка тегов
-            #     self.append_tag_settings(noffl_tag)
-            #     self.append_tags_path(noffl_tag, contr)
 
     def connect_noffl_tags(self, str_link: str, noffl_input: Element):
         """ Подключение тегов на входы функционального блока """

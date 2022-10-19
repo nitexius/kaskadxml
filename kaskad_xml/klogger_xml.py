@@ -2,8 +2,17 @@ import pathlib
 from typing import Iterable
 from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
+from dataclasses import dataclass
 from .klogic_xml import KlogicAttrs
-from .indices import get_index
+from .indices import get_type_name, ind_cls
+
+
+@dataclass
+class BdtpTagAttrs:
+    name: str
+    kid: str
+    prop_list: str
+    path: str
 
 
 def tree_insert(parent_group: Element, insert_index: int, child_group: str, text):
@@ -11,6 +20,12 @@ def tree_insert(parent_group: Element, insert_index: int, child_group: str, text
     if text:
         child.text = text
     parent_group.insert(insert_index, child)
+
+
+def get_contr_name(module: Element, contr_index: int) -> str:
+    """Получение названия контроллера"""
+    for setting in module[contr_index][ind_cls.settings].iter('UserComment'):
+        return setting.text
 
 
 class KloggerXML:
@@ -26,21 +41,20 @@ class KloggerXML:
         self.protocol_name = kl_find.protocol_name
         self.gm = kl_find.gm
         self.syst_num = kl_find.syst_num
+        self.group_tags = {}
         self.all_bdtp_tags = {}
         self.bdtp_id = 1
         self.all_groups = []
         self.all_par = []
+        self.cutout_flag = False
+        self.checked_tag = None
 
     def delete_old_config(self):
         """Удаление старой конфигурации klogger"""
-        try:
-            old_groups = self.parsed_xml.find('.//Groups')
+        old_groups = self.parsed_xml.find('.//Groups')
+        if isinstance(old_groups, Element):
             print('len(old_groups)=', len(old_groups))
-            if len(old_groups):
-                self.klogger_root.remove(old_groups)
-        except TypeError:
-            print('Конфигурация БДТП пуста')
-            pass
+            self.klogger_root.remove(old_groups)
 
     def remove_service_attrs(self, parent_group: str, group_name: str, iterables: list):
         """Удаление служебных символов в названии групп"""
@@ -53,64 +67,82 @@ class KloggerXML:
         """Добавление нового контроллера в дерево конфигурации"""
         tree_insert(self.parsed_xml.find('.//Groups'), contr_index, f'Grp{contr_index}', False)
         parent_group = self.parsed_xml.find(f'.//Grp{contr_index}')
-        tree_insert(parent_group, get_index('grp_name'), 'Name', contr)
-        tree_insert(parent_group, get_index('own_config'), 'OwnCfg', 'false')
-        tree_insert(parent_group, get_index('params'), f'Params{contr_index}', False)
+        tree_insert(parent_group, ind_cls.grp_name, 'Name', contr)
+        tree_insert(parent_group, ind_cls.own_config, 'OwnCfg', 'false')
+        tree_insert(parent_group, ind_cls.params, f'Params{contr_index}', False)
+
+    def filter_bdtp_tag(self, bdtp_tag: dict) -> dict:
+        """Фильтр тега с атрибутом БДТП"""
+        if self.checked_tag.attrib['Name'] == bdtp_tag['name']:
+            return bdtp_tag
+
+    def check_cutout(self, bdtp_tag: dict):
+        """Проверка добавлена ли уже уставка"""
+        return (True
+                if not all([bdtp_tag['alarm_id'] == 'Cutout', self.cutout_flag]) else False
+                )
+
+    def set_cutout_flag(self, bdtp_tag: dict):
+        if bdtp_tag['alarm_id'] == 'Cutout':
+            self.cutout_flag = True
+
+    def get_tag_name(self):
+        """Получение имени тега"""
+        return self.checked_tag.attrib['Name']
+
+    def get_kid(self) -> str:
+        """Получение адреса тега из klogic.xml"""
+        for setting in self.checked_tag[ind_cls.settings].iter('KId'):
+            return setting.text
+
+    def get_prop_list(self) -> str:
+        """Получние типа тега"""
+        for setting in self.checked_tag[ind_cls.settings].iter('PropList'):
+            return setting.attrib['TagType']
+
+    def set_bdtp_tag(self, module: Element, contr_index: int) -> BdtpTagAttrs:
+        """Получение атрибутов архивируемого тега"""
+        return BdtpTagAttrs(
+            name=self.get_tag_name(),
+            kid=self.get_kid(),
+            prop_list=self.get_prop_list(),
+            path=f'{self.klogic_name.text}.{self.protocol_name.text}.{self.gm.text}.{get_contr_name(module, contr_index)}.{self.get_tag_name()}'
+        )
+
+    def set_group_tags(self, module: Element, contr_index: int, tag_number: int):
+        """Получение атрибутов всех архивируемых тегов контроллера"""
+        self.group_tags[tag_number] = self.set_bdtp_tag(module, contr_index)
 
     def get_bdtp_tags(self, module: Element, bdtp_tags: Iterable):
         """Получение всех архивируемых параметров, с разделением по контроллерам"""
-        for contr_index in range(len(module))[get_index('first_contr'):]:
-            self.all_groups.append(contr_index)
-            contr = contr_index
-
-            for setting in module[contr_index][get_index('settings')].iter('UserComment'):
-                contr = setting.text
-
-            self.insert_grp_config(contr_index, contr)
+        for contr_index in range(len(module))[ind_cls.first_contr:]:
             tag_number = 0
-            group_tags = {}
-            cutout_flag = False
+            self.group_tags = {}
+            self.cutout_flag = False
+            self.all_groups.append(contr_index)
+            self.insert_grp_config(contr_index, get_contr_name(module, contr_index))
+            print(get_contr_name(module, contr_index))
 
-            for inout in module[contr_index][get_index('first_tag'):]:
-                for bdtp_tag in bdtp_tags:
-                    tag = {}
-                    if inout.attrib['Name'] == bdtp_tag['name']:
-                        if bdtp_tag['alarm_id'] == 'Cutout' and cutout_flag:
-                            continue
-                        else:
-                            tag_name = inout.attrib['Name']
-                            tag['Name'] = tag_name
-                            for setting in inout[get_index('settings')].iter('KId'):
-                                tag['KId'] = setting.text
-                            for setting in inout[get_index('settings')].iter('PropList'):
-                                tag['PropList'] = setting.attrib['TagType']
-                            tag[
-                                'st'] = f'{self.klogic_name.text}.{self.protocol_name.text}.{self.gm.text}.{contr}.{tag_name}'
-                            group_tags[tag_number] = tag
-                            tag_number += 1
-                            if bdtp_tag['alarm_id'] == 'Cutout':
-                                cutout_flag = True
-            self.all_bdtp_tags[contr_index] = group_tags
+            for self.checked_tag in module[contr_index][ind_cls.first_tag:]:
+                for bdtp_tag in filter(self.filter_bdtp_tag, bdtp_tags):
+                    print(bdtp_tag)
+                    if self.check_cutout(bdtp_tag):
+                        self.set_group_tags(module, contr_index, tag_number)
+                        tag_number += 1
+            self.all_bdtp_tags[contr_index] = self.group_tags
 
-    def get_valtype(self, grp_index: int, par_index: int) -> str:
+    def set_valtype(self, grp_index: int, par_index: int) -> str:
         return (
             '2'
-            if self.all_bdtp_tags[grp_index][par_index]['PropList'] == 'B' else '1'
+            if self.all_bdtp_tags[grp_index][par_index].prop_list == 'B' else '1'
         )
 
-    def get_typename(self, grp_index: int, par_index: int) -> str:
-        type_name = ''
-        if self.all_bdtp_tags[grp_index][par_index]['PropList'] == 'B':
-            type_name = 'Дискретный вход (Логический)'
-        if self.all_bdtp_tags[grp_index][par_index]['PropList'] == 'F':
-            type_name = 'Аналоговый вход (Вещественный)'
-        if self.all_bdtp_tags[grp_index][par_index]['PropList'] == 'W':
-            type_name = 'Аналоговый выход (Целочисленный)'
-        return type_name
+    def set_typename(self, grp_index: int, par_index: int) -> str:
+        return get_type_name(self.all_bdtp_tags[grp_index][par_index].prop_list)
 
-    def bdtp(self, module: Element, bdtp_tags: Iterable) -> str:
+    def set_klogger_xml(self, module: Element, bdtp_tags: Iterable) -> str:
         """Формирование klogger.xml"""
-        tree_insert(self.klogger_root, get_index('groups_index'), 'Groups', False)
+        tree_insert(self.klogger_root, ind_cls.groups_index, 'Groups', False)
         self.get_bdtp_tags(module, bdtp_tags)
 
         for grp in self.all_groups:
@@ -118,17 +150,17 @@ class KloggerXML:
                 self.all_par.append(par)
                 tree_insert(self.parsed_xml.find(f'.//Params{grp}'), par, f'Par{par}', False)
                 parent_group = self.parsed_xml.find(f'.//Params{grp}/Par{par}')
-                tree_insert(parent_group, get_index('zone'), 'Zone', f'{self.klogic_name.text}')
-                tree_insert(parent_group, get_index('parid'), 'ParID', f'{self.bdtp_id}')
-                tree_insert(parent_group, get_index('stid'), 'StId', f'{self.station_id}')
-                tree_insert(parent_group, get_index('type'), 'Type', '222')
-                tree_insert(parent_group, get_index('grid'), 'GrId', f'{self.syst_num.text}')
-                tree_insert(parent_group, get_index('psid'), 'PsId', self.all_bdtp_tags[grp][par]['KId'])
-                tree_insert(parent_group, get_index('valtype'), 'ValType', self.get_valtype(grp, par))
-                tree_insert(parent_group, get_index('typename'), 'TypeName', self.get_valtype(grp, par))
-                tree_insert(parent_group, get_index('cipher'), 'Cipher', str(self.all_bdtp_tags[grp][par]['Name']))
-                tree_insert(parent_group, get_index('klogger_name'), 'Name', self.all_bdtp_tags[grp][par]['st'])
-                tree_insert(parent_group, get_index('usepreagr'), 'UsePreAgr', 'false')
+                tree_insert(parent_group, ind_cls.zone, 'Zone', f'{self.klogic_name.text}')
+                tree_insert(parent_group, ind_cls.parid, 'ParID', f'{self.bdtp_id}')
+                tree_insert(parent_group, ind_cls.stid, 'StId', f'{self.station_id}')
+                tree_insert(parent_group, ind_cls.type, 'Type', '222')
+                tree_insert(parent_group, ind_cls.grid, 'GrId', f'{self.syst_num.text}')
+                tree_insert(parent_group, ind_cls.psid, 'PsId', self.all_bdtp_tags[grp][par].kid)
+                tree_insert(parent_group, ind_cls.valtype, 'ValType', self.set_valtype(grp, par))
+                tree_insert(parent_group, ind_cls.typename, 'TypeName', self.set_typename(grp, par))
+                tree_insert(parent_group, ind_cls.cipher, 'Cipher', str(self.all_bdtp_tags[grp][par].name))
+                tree_insert(parent_group, ind_cls.klogger_name, 'Name', self.all_bdtp_tags[grp][par].path)
+                tree_insert(parent_group, ind_cls.usepreagr, 'UsePreAgr', 'false')
                 self.bdtp_id += 1
 
         self.remove_service_attrs('.//Groups', 'Grp', self.all_groups)

@@ -1,5 +1,11 @@
 smart_divide_all_n = 'Делитель 1'
 
+type_names = {
+    'B': 'Дискретный вход (Логический)',
+    'F': 'Аналоговый вход (Вещественный)',
+    'W': 'Аналоговый выход (Целочисленный)'
+}
+
 constants = {
     'num_of_inputs': 10,  # Количество входов в каждом Функциональном блоке noffl
     'empty_klogic_group_len': 2,
@@ -64,3 +70,63 @@ def get_index(index_name: str) -> int:
 
 def get_const(const_name: str) -> int:
     return constants[const_name]
+
+
+def get_type_name(prop_list: str) -> str:
+    return type_names.get(prop_list)
+
+
+indices_map = {
+    'alrm_code': 0,
+    'alrm_text': 1,
+    'group_name': 1,
+    'group_alarms': 2,
+    'empty_group_len': 4,
+    'contr_name': 0,
+    'xo_type': 0,
+    'product': 1,
+    'alarm_index': 0,
+    'alarm_id': 0,
+    'full_name': 2,
+    'station_id': 0,
+    'passport_type': 1,
+    'group_id': 2,
+    'passport_id': 3,
+    'value_type': 4,
+    'groups_index': 37,
+    'grp_name': 0,
+    'own_config': 1,
+    'params': 2,
+    'zone': 0,
+    'parid': 1,
+    'stid': 2,
+    'type': 3,
+    'grid': 4,
+    'psid': 5,
+    'valtype': 6,
+    'typename': 7,
+    'cipher': 8,
+    'klogger_name': 9,
+    'usepreagr': 10,
+    'module': 1,
+    'first_tag': 1,
+    'first_contr': 3,
+    'first_fb_input': 1,
+    'first_fb': 1,
+    'tag_connected': 0,
+    'fb_input_connected': 1,
+    'settings': 0,
+    'name': 0,
+    'alarm_split': 1,
+    'service_inputs': 3,
+    'n_input_index': 5
+}
+
+
+class Indices:
+    def __init__(self, **kwargs):
+        # self.__dict__.update(kwargs)
+        self.__dict__ = kwargs
+
+
+ind_cls = Indices(**indices_map)
