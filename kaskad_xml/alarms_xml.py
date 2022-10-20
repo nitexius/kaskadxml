@@ -5,8 +5,8 @@ from xml.etree.ElementTree import Element
 from dataclasses import dataclass
 from .klogic_xml import KlogicAttrs
 from .klogic_indexes import FIRST_CONTR_INDEX, FIRST_TAG_INDEX, SETTINGS_INDEX, ALARM_SPLIT_INDEX
-from .alrm import alrm, stations, xo_types
-from .indices import get_index, get_const
+from .alrm import alrm, stations
+from .indices import indices as i, constants as c, xo_types
 
 
 @dataclass
@@ -75,10 +75,10 @@ def get_value_type(tag_settings: Element) -> int:
 def mark_group_not_for_del(group: Element):
     """Добавление исключения для не удаления пустой группы"""
     if all([
-        group[get_index('group_name')].text == 'Авария всех компрессоров',
-        group[get_index('group_alarms')].tag != f'tempAlarms'
+        group[i.group_name].text == 'Авария всех компрессоров',
+        group[i.group_alarms].tag != f'tempAlarms'
     ]):
-        tree_insert(group, get_index('group_alarms'), 'tempAlarms', False)
+        tree_insert(group, i.group_alarms, 'tempAlarms', False)
 
 
 def get_measure_units_index(alarm_tag: AlarmTag) -> int:
@@ -132,46 +132,42 @@ class AlarmsXML:
                 cutout = product['cutout']
                 break
             else:
-                cutout = str(get_const('new_product_cutout'))
+                cutout = str(c.new_product_cutout)
         return cutout
 
     def cutout(self, contr: str) -> CutoutAttrs:
         """Получение значения уставки и типа оборудования для контроллера"""
         result = CutoutAttrs(
-            cutout=str(get_const('new_product_cutout')),
+            cutout=str(c.new_product_cutout),
             xo_type='None'
         )
-        name = contr.split('__')[get_index('contr_name')]
+        name = contr.split('__')[i.contr_name]
         try:
-            result.xo_type = name.split('_')[get_index('xo_type')]
-            product = name.split('_')[get_index('product')]
-            if any([
-                result.xo_type == 'Б',
-                result.xo_type == 'БШ',
-                result.xo_type == 'НК'
-            ]):
-                result.cutout = str(get_const('nt_cutout'))
+            result.xo_type = name.split('_')[i.xo_type]
+            product = name.split('_')[i.product]
+            if result.xo_type in xo_types.nt:
+                result.cutout = str(c.nt_cutout)
             else:
                 for prod in self.products:
                     if name == prod['name']:
                         result.cutout = prod['cutout']
                         break
                     else:
-                        if result.xo_type == 'СК':
-                            result.cutout = str(get_const('stk_cutout'))
+                        if result.xo_type in xo_types.stk:
+                            result.cutout = str(c.stk_cutout)
                         else:
-                            if result.xo_type == 'Ц':
-                                result.cutout = str(get_const('ceh_cutout'))
+                            if result.xo_type in xo_types.ceh:
+                                result.cutout = str(c.ceh_cutout)
                             else:
                                 result.cutout = self.check_cutout(product)
         except IndexError:
             for prod in self.products:
                 if name == prod['name'] and any([
-                    prod['xo_type'] == 'server',
-                    prod['xo_type'] == 'central_room'
+                    name in xo_types.server,
+                    name in xo_types.central_room
                 ]):
                     result = CutoutAttrs(
-                        cutout=str(get_const('server_cutout')),
+                        cutout=str(c.server_cutout),
                         xo_type=prod['xo_type']
                     )
         return result
@@ -192,8 +188,8 @@ class AlarmsXML:
         """Получение названия станции"""
         station_name = ''
         for station in stations:
-            if self.station_id == station[get_index('alrm_code')]:
-                station_name = station[get_index('alrm_text')]
+            if self.station_id == station[i.alrm_code]:
+                station_name = station[i.alrm_text]
         return f'{station_name}\\{self.klogic_name.text}'
 
     def set_tag_full_name(self, module: Element, attrs: AlarmTagAttrs) -> str:
@@ -214,23 +210,22 @@ class AlarmsXML:
         tag_alarm = ''
         for group in alrm:
             if any([
-                group[get_index('alrm_code')] == 'Уставки',
-                group[get_index('alrm_code')] == 'Потребители',
-                group[get_index('alrm_code')] == 'Централи'
+                group[i.alrm_code] == 'Уставки',
+                group[i.alrm_code] == 'Потребители',
+                group[i.alrm_code] == 'Централи'
             ]):
-                for alarm in group[get_index('alrm_text')]:
-                    if alarm_tag.alarm_tag_attr.tag['alarm_id'] == alarm[get_index('alrm_code')]:
-                        tag_alarm = alarm[get_index('alrm_text')]
+                for alarm in group[i.alrm_text]:
+                    if alarm_tag.alarm_tag_attr.tag['alarm_id'] == alarm[i.alrm_code]:
+                        tag_alarm = alarm[i.alrm_text]
             else:
-                if alarm_tag.alarm_tag_attr.tag['alarm_id'] == group[get_index('alrm_code')]:
-                    tag_alarm = group[get_index('alrm_text')]
+                if alarm_tag.alarm_tag_attr.tag['alarm_id'] == group[i.alrm_code]:
+                    tag_alarm = group[i.alrm_text]
 
         tag_alarm_id = alarm_tag.alarm_tag_attr.tag['alarm_id']
         xo_type = self.cutout(alarm_tag.alarm_tag_attr.contr).xo_type
-        if tag_alarm_id == 'A1' and any([
-            xo_type == 'СК',
-            xo_type == 'НК',
-            xo_type == 'server',
+        if all([
+            tag_alarm_id == 'A1',
+            xo_type in xo_types.a1k
         ]):
             tag_alarm = 'A1. Высокая температура К'
             tag_alarm_id = f'{tag_alarm_id}K'
@@ -239,14 +234,14 @@ class AlarmsXML:
             cutout = self.cutout(alarm_tag.alarm_tag_attr.contr).cutout
             tag_alarm = f'{cutout}c'
             tag_alarm_id = f'{tag_alarm_id}{tag_alarm}'
-            if cutout == str(get_const('new_product_cutout')):
+            if cutout == str(c.new_product_cutout):
                 self.new_product.add(alarm_tag.alarm_tag_attr.contr)
         else:
             if tag_alarm_id == 'A13-high-lim-air':
                 cutout = self.cutout(alarm_tag.alarm_tag_attr.contr).cutout
                 tag_alarm = f'{cutout}a'
                 tag_alarm_id = f'{tag_alarm_id}{tag_alarm}'
-                if cutout == str(get_const('new_product_cutout')):
+                if cutout == str(c.new_product_cutout):
                     self.new_product.add(alarm_tag.alarm_tag_attr.contr)
 
         return AlarmAttrs(
@@ -256,14 +251,14 @@ class AlarmsXML:
 
     def insert_alarms_group(self, group: Element, attrs: AlarmAttrs):
         """Добавление группы Alarms с идентификатором аварии"""
-        if group[get_index('group_alarms')].tag != f'{attrs.id}Alarms':
-            tree_insert(group, get_index('group_alarms'), f'{attrs.id}Alarms', False)
+        if group[i.group_alarms].tag != f'{attrs.id}Alarms':
+            tree_insert(group, i.group_alarms, f'{attrs.id}Alarms', False)
             self.all_tag_alrm_id.append(attrs.id)
 
     def check_group_item(self, group: Element, attrs: AlarmAttrs) -> bool:
         """Поиск аварийной группы"""
         alarm_group_find = False
-        if group[get_index('group_name')].text == attrs.text:
+        if group[i.group_name].text == attrs.text:
             alarm_group_find = True
             self.insert_alarms_group(group, attrs)
         return alarm_group_find
@@ -300,12 +295,12 @@ class AlarmsXML:
         for group in group_item:
             mark_group_not_for_del(group)
             if self.check_group_item(group, alarm_attrs):
-                tree_insert(self.parsed_xml.find(f'.//{alarm_attrs.id}Alarms'), get_index('alarm_index'), 'Alarm',
+                tree_insert(self.parsed_xml.find(f'.//{alarm_attrs.id}Alarms'), i.alarm_index, 'Alarm',
                             False)
                 parent_group = self.parsed_xml.find(f'.//{alarm_attrs.id}Alarms/Alarm')
-                tree_insert(parent_group, get_index('alarm_id'), 'ID', f'{alarm_tag.alarm_tag_attr.id}')
-                tree_insert(parent_group, get_index('group_name'), 'Name', f'{alarm_tag.alarm_tag_attr.tag_name}')
-                tree_insert(parent_group, get_index('full_name'), 'FullName',
+                tree_insert(parent_group, i.alarm_id, 'ID', f'{alarm_tag.alarm_tag_attr.id}')
+                tree_insert(parent_group, i.group_name, 'Name', f'{alarm_tag.alarm_tag_attr.tag_name}')
+                tree_insert(parent_group, i.full_name, 'FullName',
                             f'{alarm_tag_full_name}'.replace('\\', '.'))
                 if measure_units:
                     tree_insert(parent_group, mu_index, 'MeasureUnits', f'{measure_units}')
@@ -313,11 +308,11 @@ class AlarmsXML:
                 tree_insert(parent_group, mu_index + 2, 'StationName', f'{self.station_name}')
                 tree_insert(parent_group, mu_index + 3, 'Passport', False)
                 passport_group = self.parsed_xml.find(f'.//{alarm_attrs.id}Alarms/Alarm/Passport')
-                tree_insert(passport_group, get_index('station_id'), 'StationID', f'{self.station_id}')
-                tree_insert(passport_group, get_index('passport_type'), 'PassportType', '222')
-                tree_insert(passport_group, get_index('group_id'), 'GroupID', f'{self.syst_num.text}')
-                tree_insert(passport_group, get_index('passport_id'), 'PassportID', f'{kid}')
-                tree_insert(passport_group, get_index('value_type'), 'ValueType', f'{value_type}')
+                tree_insert(passport_group, i.station_id, 'StationID', f'{self.station_id}')
+                tree_insert(passport_group, i.passport_type, 'PassportType', '222')
+                tree_insert(passport_group, i.group_id, 'GroupID', f'{self.syst_num.text}')
+                tree_insert(passport_group, i.passport_id, 'PassportID', f'{kid}')
+                tree_insert(passport_group, i.value_type, 'ValueType', f'{value_type}')
                 tree_insert(parent_group, mu_index + 4, 'StringID', f'{string_id}')
 
     def delete_empty_groups(self):
@@ -326,7 +321,7 @@ class AlarmsXML:
         for group in alarms_groups:
             item = 0
             while item < len(group):
-                if len(group[item]) < get_index('empty_group_len'):
+                if len(group[item]) < i.empty_group_len:
                     group.remove(group[item])
                 else:
                     item += 1

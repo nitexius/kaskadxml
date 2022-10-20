@@ -182,7 +182,7 @@ stations = (
     ('35', 'SCADA-XO5'),
 )
 
-xo_types = (
+xo_choices = (
     ('None', '-'),
     ('server', 'Серверная'),
     ('central_room', 'МашЗал'),
