@@ -1,5 +1,5 @@
 from django.db import models
-from .kaskad_xml import alrm, stations, xo_types
+from .kaskad_xml import alrm, stations, xo_choices
 
 
 class Klogic(models.Model):
@@ -61,7 +61,7 @@ class Cutout(models.Model):
     """Уставки для продуктов (Контроль уставок)"""
     name = models.CharField(max_length=100, verbose_name='Наименование продукта', unique=True)
     cutout = models.IntegerField(default=-50, verbose_name='Уставка')
-    xo_type = models.CharField(max_length=100, default='None', verbose_name='Серверная/Машзал', choices=xo_types)
+    xo_type = models.CharField(max_length=100, default='None', verbose_name='Серверная/Машзал', choices=xo_choices)
 
     class Meta:
         ordering = ['name']
