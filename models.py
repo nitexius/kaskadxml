@@ -1,32 +1,5 @@
 from django.db import models
-from .kaskad_xml import alrm, stations, xo_choices
-
-
-class Klogic(models.Model):
-    """xml klogic ИС Диспетчеризация ХО"""
-    gm = models.CharField(max_length=100, verbose_name='Код ГМ', unique=True)
-    xml = models.FileField(upload_to='media/klogic')
-    station_id = models.CharField(max_length=100, default='0', verbose_name='Индетификатор станции', choices=stations)
-
-    class Meta:
-        ordering = ['gm']
-        verbose_name = 'Klogic XML'
-        verbose_name_plural = 'Klogic XML'
-
-    def __str__(self):
-        return self.gm
-
-
-class Shift(models.Model):
-    """Смещение адресов контроллеров в xml klogic"""
-    gm = models.CharField(max_length=100, verbose_name='Код ГМ', unique=True)
-    txt = models.FileField(upload_to='media/shift')
-
-    class Meta:
-        ordering = ['gm']
-
-    def __str__(self):
-        return self.gm
+from .kaskad_xml import alrm, xo_choices
 
 
 class Alarms(models.Model):
@@ -38,20 +11,6 @@ class Alarms(models.Model):
         ordering = ['gm']
         verbose_name = 'Alarm'
         verbose_name_plural = 'Alarms'
-
-    def __str__(self):
-        return self.gm
-
-
-class Klogger(models.Model):
-    """xml klogger (BDTP) ИС Диспетчеризация ХО"""
-    gm = models.CharField(max_length=100, verbose_name='Код ГМ', unique=True)
-    xml = models.FileField(upload_to='media/klogger')
-
-    class Meta:
-        ordering = ['gm']
-        verbose_name = 'Klogger XML'
-        verbose_name_plural = 'Klogger XML'
 
     def __str__(self):
         return self.gm

@@ -1,13 +1,10 @@
 from django.contrib import admin
-from .models import Klogic, Klogger, Alarms, HistoryAttr, GoodTags, BadTags, NewTags, Cutout, Shift
+from .models import Alarms, HistoryAttr, GoodTags, BadTags, NewTags, Cutout
 
 from import_export.admin import ImportExportActionModelAdmin, ImportExportModelAdmin
 from import_export import resources
 
 
-admin.site.register(Klogic)
-admin.site.register(Shift)
-admin.site.register(Klogger)
 admin.site.register(Alarms)
 admin.site.register(HistoryAttr)
 
