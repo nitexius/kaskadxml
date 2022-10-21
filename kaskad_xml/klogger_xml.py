@@ -1,10 +1,14 @@
 import pathlib
+import logging
+import datetime
+import os
+from pathlib import Path
 from typing import Iterable
 from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
 from dataclasses import dataclass
 from .klogic_xml import KlogicAttrs
-from .indices import indices as i, get_type_name
+from .indices import indices as i, type_names
 
 
 @dataclass
@@ -48,12 +52,28 @@ class KloggerXML:
         self.all_par = []
         self.cutout_flag = False
         self.checked_tag = None
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.DEBUG)
+        self.set_logging()
+
+    def set_logging(self):
+        base_dir = Path(__file__).resolve().parent.parent
+        log_dir = f'{base_dir}/logs/{datetime.date.today()}'
+        if not os.path.exists(log_dir):
+            os.mkdir(log_dir)
+        log_path = f'{log_dir}/klogger_logging.log'
+        logger_handler = logging.FileHandler(log_path)
+        logger_handler.setLevel(logging.DEBUG)
+        logger_formatter = logging.Formatter('%(asctime)s %(message)s')
+        logger_handler.setFormatter(logger_formatter)
+        self.logger.addHandler(logger_handler)
 
     def delete_old_config(self):
         """Удаление старой конфигурации klogger"""
         old_groups = self.parsed_xml.find('.//Groups')
         if isinstance(old_groups, Element):
-            print('len(old_groups)=', len(old_groups))
+            self.logger.debug('len(old_groups)=')
+            self.logger.debug(len(old_groups))
             self.klogger_root.remove(old_groups)
 
     def remove_service_attrs(self, parent_group: str, group_name: str, iterables: list):
@@ -121,11 +141,11 @@ class KloggerXML:
             self.cutout_flag = False
             self.all_groups.append(contr_index)
             self.insert_grp_config(contr_index, get_contr_name(module, contr_index))
-            #print(get_contr_name(module, contr_index))
+            self.logger.debug(get_contr_name(module, contr_index))
 
             for self.checked_tag in module[contr_index][i.first_tag:]:
                 for bdtp_tag in filter(self.filter_bdtp_tag, bdtp_tags):
-                    #print(bdtp_tag)
+                    self.logger.debug(bdtp_tag)
                     if self.check_cutout(bdtp_tag):
                         self.set_group_tags(module, contr_index, tag_number)
                         tag_number += 1
@@ -138,7 +158,7 @@ class KloggerXML:
         )
 
     def set_typename(self, grp_index: int, par_index: int) -> str:
-        return get_type_name(self.all_bdtp_tags[grp_index][par_index].prop_list)
+        return type_names.get(self.all_bdtp_tags[grp_index][par_index].prop_list)
 
     def set_klogger_xml(self, module: Element, bdtp_tags: Iterable) -> str:
         """Формирование klogger.xml"""
@@ -169,8 +189,5 @@ class KloggerXML:
 
         return "Klogger XML: Обработка завершена"
 
-    def write(self, xml_path: pathlib.Path):
-        if not xml_path:
-            xml_path = self.xml_path
-        print(xml_path)
+    def write(self, xml_path):
         self.parsed_xml.write(xml_path, encoding='UTF-8')

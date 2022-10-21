@@ -1,4 +1,8 @@
+import logging
 import pathlib
+import datetime
+import os
+from pathlib import Path
 from typing import Iterable
 from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
@@ -116,6 +120,21 @@ class AlarmsXML:
         self.new_product = set()
         self.all_tag_alrm_id = []
         self.station_name = self.get_station_name()
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.DEBUG)
+        self.set_logging()
+
+    def set_logging(self):
+        base_dir = Path(__file__).resolve().parent.parent
+        log_dir = f'{base_dir}/logs/{datetime.date.today()}'
+        if not os.path.exists(log_dir):
+            os.mkdir(log_dir)
+        log_path = f'{log_dir}/alarms_logging.log'
+        logger_handler = logging.FileHandler(log_path)
+        logger_handler.setLevel(logging.DEBUG)
+        logger_formatter = logging.Formatter('%(asctime)s %(message)s')
+        logger_handler.setFormatter(logger_formatter)
+        self.logger.addHandler(logger_handler)
 
     def rename_main_group(self):
         """Переименование корневой группы"""
@@ -162,10 +181,7 @@ class AlarmsXML:
                                 result.cutout = self.check_cutout(product)
         except IndexError:
             for prod in self.products:
-                if name == prod['name'] and any([
-                    name in xo_types.server,
-                    name in xo_types.central_room
-                ]):
+                if name == prod['name']:
                     result = CutoutAttrs(
                         cutout=str(c.server_cutout),
                         xo_type=prod['xo_type']
@@ -295,6 +311,8 @@ class AlarmsXML:
         for group in group_item:
             mark_group_not_for_del(group)
             if self.check_group_item(group, alarm_attrs):
+                self.logger.debug(alarm_attrs.text)
+                self.logger.debug(string_id)
                 tree_insert(self.parsed_xml.find(f'.//{alarm_attrs.id}Alarms'), i.alarm_index, 'Alarm',
                             False)
                 parent_group = self.parsed_xml.find(f'.//{alarm_attrs.id}Alarms/Alarm')
@@ -386,8 +404,5 @@ class AlarmsXML:
         else:
             return "Alarm XML: Обработка завершена"
 
-    def write(self, xml_path: pathlib.Path):
-        if not xml_path:
-            xml_path = self.xml_path
-        print(xml_path)
-        self.parsed_xml.write(str(xml_path), encoding='UTF-8')
+    def write(self, xml_path):
+        self.parsed_xml.write(xml_path, encoding='UTF-8')

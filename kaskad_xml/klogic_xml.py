@@ -1,4 +1,7 @@
-import pathlib
+import logging
+import datetime
+import os
+from pathlib import Path
 from typing import Iterable, List
 from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
@@ -85,12 +88,6 @@ def tree_insert(parent_group: Element, insert_index: int, child_group: str, text
     parent_group.insert(insert_index, child)
 
 
-def update_inout_setting(inout: Element, setting_tag: str, text: str):
-    for setting in inout[i.settings].iter(setting_tag):
-        setting.text = text
-        print(setting.tag, text)
-
-
 def get_node(group: Element) -> str:
     """Получение адреса контроллера"""
     node = 0
@@ -113,7 +110,7 @@ def filter_smart_divide_out(inout: Element) -> bool:
 class KlogicXML:
     """ Класс для  KlogicXML"""
 
-    def __init__(self, xml_path: pathlib.Path, prot_code: str):
+    def __init__(self, xml_path, prot_code: str):
         self.xml_path = xml_path
         self.parsed_xml = ElementTree.parse(self.xml_path)
         self.prot_code = prot_code
@@ -131,6 +128,27 @@ class KlogicXML:
         self.teall = '&lt;?xml version=&quot;1.0&quot; encoding=&quot;windows-1251&quot;?&gt;&lt;Elements&gt;&lt;Controls&gt;'
         self.checked_tag = None
         self.checked_attr = None
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.DEBUG)
+        self.set_logging()
+
+    def set_logging(self):
+        base_dir = Path(__file__).resolve().parent.parent
+        log_dir = f'{base_dir}/logs/{datetime.date.today()}'
+        if not os.path.exists(log_dir):
+            os.mkdir(log_dir)
+        log_path = f'{log_dir}/klogic_logging.log'
+        logger_handler = logging.FileHandler(log_path)
+        logger_handler.setLevel(logging.DEBUG)
+        logger_formatter = logging.Formatter('%(asctime)s %(message)s')
+        logger_handler.setFormatter(logger_formatter)
+        self.logger.addHandler(logger_handler)
+
+    def update_inout_setting(self, inout: Element, setting_tag: str, text: str):
+        for setting in inout[i.settings].iter(setting_tag):
+            setting.text = text
+            self.logger.debug(setting.tag)
+            self.logger.debug(text)
 
     def filter_noffl_tag(self, tag: Element) -> bool:
         """Фильтр параметра noffl"""
@@ -194,7 +212,9 @@ class KlogicXML:
             controller=group.attrib['Name'],
             tag_name=tag_name
         )
-        print('Новый параметр:', tag_attrs.tag_id, tag_attrs.controller, tag_attrs.tag_name)
+        self.logger.debug('Новый параметр:')
+        self.logger.debug(tag_attrs.controller)
+        self.logger.debug(tag_attrs.tag_name)
         return Tag(tag_attrs)
 
     def update_new_lists(self, new_tag: Tag):
@@ -226,17 +246,21 @@ class KlogicXML:
         """Удаление пустых групп"""
         for group in self.module[i.first_contr:]:
             if len(group) < c.empty_klogic_group_len:
-                print("Удалена пустая группа:", group.attrib['Name'])
+                self.logger.debug('Удалена пустая группа:')
+                self.logger.debug(group.attrib['Name'])
                 self.module.remove(group)
 
     def delete_tags(self, bad_tags: Iterable):
         """Удаление ненужных переменных"""
+        deleted_tags = []
         for group in self.module[i.first_contr:]:
             for tag in bad_tags:
                 for InOut in group[i.first_tag:]:
                     if InOut.attrib['Name'] == tag['name'] and len(InOut) < c.central_alarm_len:
-                        print(group.attrib['Name'], InOut.attrib['Name'], len(InOut))
+                        deleted_tags.append(InOut.attrib['Name'])
                         group.remove(InOut)
+        self.logger.debug('Удалено переменных:')
+        self.logger.debug(len(deleted_tags))
 
     def add_comment(self):
         """Добавление комментария для оборудования"""
@@ -335,16 +359,16 @@ class KlogicXML:
             setting_text = '%.2f' % self.connected_inputs
         else:
             setting_text = '%.2f' % 0
-        update_inout_setting(fb[i.n_input_index], 'InitValue0', setting_text)
+        self.update_inout_setting(fb[i.n_input_index], 'InitValue0', setting_text)
 
     def update_all_n(self, smart_divide: Element):
         """ Вставка количества контроллеров в ФБ smart divide"""
-        print('Общее количество контроллеров:',
-              ((self.num_of_fb - 1) * c.num_of_inputs) + self.connected_inputs)
+        self.logger.debug('Общее количество контроллеров:')
+        self.logger.debug(((self.num_of_fb - 1) * c.num_of_inputs) + self.connected_inputs)
 
         inout = filter(filter_smart_divide_out, smart_divide.iter('InOut'))
-        update_inout_setting(next(inout), 'InitValue0',
-                             '%.2f' % (((self.num_of_fb - 1) * c.num_of_inputs) + self.connected_inputs))
+        self.update_inout_setting(next(inout), 'InitValue0',
+                                  '%.2f' % (((self.num_of_fb - 1) * c.num_of_inputs) + self.connected_inputs))
 
     def insert_task_elements(self, kl_find: KlogicAttrs):
         """ Вставка строки <TaskElements> """
@@ -371,7 +395,8 @@ class KlogicXML:
         tree_insert(self.tag_settings[self.noffl_contr], i.tag_connected, 'Connected', str_link)
         tree_insert(noffl_input[i.settings], i.fb_input_connected, 'Connected',
                     self.tags_path[self.noffl_contr])
-        print(str_link, self.tags_path[self.noffl_contr])
+        self.logger.debug(str_link)
+        self.logger.debug(self.tags_path[self.noffl_contr])
 
     def set_noffl(self, good_tags: Iterable):
         """Привязка входов к функциональным блокам noffl"""
@@ -407,7 +432,5 @@ class KlogicXML:
         self.insert_task_elements(kl_find)
         self.update_all_n(smart_divide)
 
-    def write(self, xml_path: pathlib.Path):
-        if not xml_path:
-            xml_path = self.xml_path
+    def write(self, xml_path):
         self.parsed_xml.write(xml_path)

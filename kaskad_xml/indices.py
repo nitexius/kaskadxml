@@ -11,7 +11,7 @@ xo_types_map = {
 }
 
 
-type_names_map = {
+type_names = {
     'B': 'Дискретный вход (Логический)',
     'F': 'Аналоговый вход (Вещественный)',
     'W': 'Аналоговый выход (Целочисленный)'
@@ -75,10 +75,6 @@ indices_map = {
 }
 
 
-def get_type_name(prop_list: str) -> str:
-    return type_names_map.get(prop_list)
-
-
 class AttrCreator:
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
@@ -87,4 +83,3 @@ class AttrCreator:
 indices = AttrCreator(**indices_map)
 constants = AttrCreator(**constants_map)
 xo_types = AttrCreator(**xo_types_map)
-
