@@ -1,31 +1,23 @@
+import io
 import logging
 import datetime
 import os
 import zipfile
-from django.http import FileResponse
+from django.http import FileResponse, HttpResponse
 from pathlib import Path
 from io import BytesIO
-from typing import Iterable
+from typing import Iterable, List
+from dataclasses import dataclass
 from django.shortcuts import render
 from .forms import KlogicForm
-from .kaskad_xml import AlarmsXML, KloggerXML, KlogicXML, ErrorMissingNofflTag
+from .kaskad_xml import AlarmsXML, KloggerXML, KlogicXML, ErrorMissingNofflTag, ErrorMissingProduct
 from .models import HistoryAttr, GoodTags, BadTags, Alarms, Cutout, NewTags
 
 
-def set_logging():
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.DEBUG)
-    base_dir = Path(__file__).resolve().parent.parent
-    log_dir = f'{base_dir}/kaskadxml/logs/{datetime.date.today()}'
-    if not os.path.exists(log_dir):
-        os.mkdir(log_dir)
-    log_path = f'{log_dir}/views_logging.log'
-    logger_handler = logging.FileHandler(log_path)
-    logger_handler.setLevel(logging.DEBUG)
-    logger_formatter = logging.Formatter('%(asctime)s %(message)s')
-    logger_handler.setFormatter(logger_formatter)
-    logger.addHandler(logger_handler)
-    return logger
+@dataclass
+class OutputFiles:
+    name: str
+    file: bytes
 
 
 def get_tags() -> Iterable:
@@ -60,8 +52,16 @@ def shift_create(klogic_xml: KlogicXML) -> BytesIO:
     return txt
 
 
+def set_arch(zip_buffer: BytesIO, files: List[OutputFiles]) -> BytesIO:
+    for file in files:
+        with zipfile.ZipFile(zip_buffer, 'a') as zip_file:
+            zip_file.writestr(file.name, file.file)
+    return zip_buffer
+
+
 def index(request):
-    logger = set_logging()
+    logger = logging.getLogger(__name__)
+    output_files = []
     form = KlogicForm()
     context = {'form': form}
 
@@ -77,6 +77,7 @@ def index(request):
 
         klogic_xml = KlogicXML(klogic_input_file, prot_code='244')
         try:
+            context['text_error'] = False
             klogic_xml.find_module()
             logger.debug(klogic_xml.module.tag)
             klogic_xml.h_remove(HistoryAttr.get_h_attrs())
@@ -86,7 +87,7 @@ def index(request):
             context['text_kl'] = "Klogic XML: Неправильный формат"
 
         if new_tags == -1:
-            context['text'] = "В группе Alarms у централи добавлены не все переменные"
+            context['text_error'] = "В группе Alarms у централи добавлены не все переменные"
         else:
             if len(new_tags):
                 for tag in new_tags:
@@ -95,26 +96,27 @@ def index(request):
                 context['text'] = "Новые переменные:"
                 context['len_new_tags'] = len(new_tags)
             else:
-                context['text_kl'] = "Klogic XML: Обработка завершена"
                 klogic_xml.delete_empty_groups()
                 klogic_xml.delete_tags(BadTags.get_bad_tags_values())
                 klogic_xml.add_comment()
                 gm = klogic_xml.klogic_tree_find().gm.text
                 try:
                     klogic_xml.set_noffl(GoodTags.get_good_tags_values())
-                except ErrorMissingNofflTag:
-                    context['text_kl'] = 'Klogic XML: У контроллеров не заданы параметры для ФБ noffl'
-
+                    context['text_kl'] = "klogic XML: Обработка завершена"
+                except ErrorMissingNofflTag as e:
+                    context['text_error'] = e
                 klogic_output_file = BytesIO()
                 klogic_xml.write(klogic_output_file)
-
-                with zipfile.ZipFile(f'{gm}.zip', 'a') as zip_file:
-                    zip_file.writestr(xml_filename, klogic_output_file.getbuffer())
+                output_files.append(OutputFiles(
+                    name=xml_filename,
+                    file=klogic_output_file.getbuffer()
+                ))
 
                 shift = shift_create(klogic_xml)
-                with zipfile.ZipFile(f'{gm}.zip', 'a') as zip_file:
-                    zip_file.writestr('Смещение.txt', shift.getbuffer())
-
+                output_files.append(OutputFiles(
+                    name='Смещение.txt',
+                    file=shift.getbuffer()
+                ))
                 if bdtp_checkbox:
                     klogger_xml_file = request.FILES['klogger_file'].read()
                     klogger_xml_filename = request.FILES['klogger_file'].name
@@ -130,11 +132,14 @@ def index(request):
                                                                            GoodTags.get_bdtp_tags())
                         klogger_output_file = BytesIO()
                         klogger_xml.write(klogger_output_file)
-                        with zipfile.ZipFile(f'{gm}.zip', 'a') as zip_file:
-                            zip_file.writestr(klogger_xml_filename, klogger_output_file.getbuffer())
+                        output_files.append(OutputFiles(
+                            name=klogger_xml_filename,
+                            file=klogger_output_file.getbuffer()
+                        ))
                     except AttributeError:
                         context['text_bdtp'] = "Klogger XML: Неправильный формат"
                 if alarm_checkbox:
+                    context['text_al'] = False
                     logger.debug('alarm_checkbox:')
                     logger.debug(alarm_checkbox)
                     try:
@@ -151,13 +156,22 @@ def index(request):
                                                                          GoodTags.get_good_tags_values())
                             new_alarm_xml = BytesIO()
                             alarm_xml.write(new_alarm_xml)
-                            with zipfile.ZipFile(f'{gm}.zip', 'a') as zip_file:
-                                zip_file.writestr('Alarms.xml', new_alarm_xml.getbuffer())
+                            output_files.append(OutputFiles(
+                                name='Alarms.xml',
+                                file=new_alarm_xml.getbuffer()
+                            ))
                         except AttributeError:
                             context['text_al'] = "Alarm XML: Неправильный формат"
+                        except ErrorMissingProduct as e:
+                            context['text_error'] = e
                     except (Alarms.DoesNotExist, FileNotFoundError):
                         context['text_al'] = "Alarm XML не найден"
 
-                return FileResponse(open(f'{gm}.zip', 'rb'), as_attachment=True)
+                logger.debug(context)
+                if not context['text_error']:
+                    zip_buffer = set_arch(BytesIO(), output_files)
+                    response = HttpResponse(zip_buffer.getvalue(), content_type='application/zip')
+                    response['Content-Disposition'] = 'attachment; filename=output.zip'
+                    return response
 
     return render(request, 'xoxml/index.html', context)
