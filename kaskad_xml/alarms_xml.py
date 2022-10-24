@@ -46,6 +46,10 @@ class AlarmTag:
         self.alarm_tag_attr = alarm_tag_attrs
 
 
+class ErrorMissingProduct(Exception):
+    """ Исключение при отсутствующих тегах nofll у контроллера"""
+
+
 def tree_insert(parent_group: Element, insert_index: int, child_group: str, text):
     child = ElementTree.Element(child_group)
     if text:
@@ -121,20 +125,6 @@ class AlarmsXML:
         self.all_tag_alrm_id = []
         self.station_name = self.get_station_name()
         self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.DEBUG)
-        self.set_logging()
-
-    def set_logging(self):
-        base_dir = Path(__file__).resolve().parent.parent
-        log_dir = f'{base_dir}/logs/{datetime.date.today()}'
-        if not os.path.exists(log_dir):
-            os.mkdir(log_dir)
-        log_path = f'{log_dir}/alarms_logging.log'
-        logger_handler = logging.FileHandler(log_path)
-        logger_handler.setLevel(logging.DEBUG)
-        logger_formatter = logging.Formatter('%(asctime)s %(message)s')
-        logger_handler.setFormatter(logger_formatter)
-        self.logger.addHandler(logger_handler)
 
     def rename_main_group(self):
         """Переименование корневой группы"""
@@ -400,7 +390,8 @@ class AlarmsXML:
         self.remove_service_attrs('.//GroupItem', 'Alarms', self.all_tag_alrm_id)
 
         if len(self.new_product):
-            return "Alarm XML: Новый вид продукта" + f'{self.new_product}'
+            raise ErrorMissingProduct(f'Alarm XML: Новый вид продукта: {self.new_product}')
+            # return "Alarm XML: Новый вид продукта" + f'{self.new_product}'
         else:
             return "Alarm XML: Обработка завершена"
 

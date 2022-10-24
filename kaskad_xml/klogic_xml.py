@@ -129,20 +129,6 @@ class KlogicXML:
         self.checked_tag = None
         self.checked_attr = None
         self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.DEBUG)
-        self.set_logging()
-
-    def set_logging(self):
-        base_dir = Path(__file__).resolve().parent.parent
-        log_dir = f'{base_dir}/logs/{datetime.date.today()}'
-        if not os.path.exists(log_dir):
-            os.mkdir(log_dir)
-        log_path = f'{log_dir}/klogic_logging.log'
-        logger_handler = logging.FileHandler(log_path)
-        logger_handler.setLevel(logging.DEBUG)
-        logger_formatter = logging.Formatter('%(asctime)s %(message)s')
-        logger_handler.setFormatter(logger_formatter)
-        self.logger.addHandler(logger_handler)
 
     def update_inout_setting(self, inout: Element, setting_tag: str, text: str):
         for setting in inout[i.settings].iter(setting_tag):
@@ -325,9 +311,12 @@ class KlogicXML:
 
     def append_tag_settings(self, tag: Element):
         """Обновление списка с группами настроек тегов"""
-        tag_name = tag.attrib['Name']
-        if tag_name:
-            self.tag_settings.append(tag[i.settings])
+        try:
+            tag_name = tag.attrib['Name']
+            if tag_name:
+                self.tag_settings.append(tag[i.settings])
+        except AttributeError:
+            raise ErrorMissingNofflTag('У контроллера не заданы параметры для ФБ noffl')
 
     def append_tags_path(self, tag: Element, contr: str):
         """Обновление списка с путем всех тегов noffl в xml"""

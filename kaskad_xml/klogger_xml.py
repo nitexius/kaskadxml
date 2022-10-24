@@ -53,20 +53,6 @@ class KloggerXML:
         self.cutout_flag = False
         self.checked_tag = None
         self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.DEBUG)
-        self.set_logging()
-
-    def set_logging(self):
-        base_dir = Path(__file__).resolve().parent.parent
-        log_dir = f'{base_dir}/logs/{datetime.date.today()}'
-        if not os.path.exists(log_dir):
-            os.mkdir(log_dir)
-        log_path = f'{log_dir}/klogger_logging.log'
-        logger_handler = logging.FileHandler(log_path)
-        logger_handler.setLevel(logging.DEBUG)
-        logger_formatter = logging.Formatter('%(asctime)s %(message)s')
-        logger_handler.setFormatter(logger_formatter)
-        self.logger.addHandler(logger_handler)
 
     def delete_old_config(self):
         """Удаление старой конфигурации klogger"""
@@ -145,9 +131,10 @@ class KloggerXML:
 
             for self.checked_tag in module[contr_index][i.first_tag:]:
                 for bdtp_tag in filter(self.filter_bdtp_tag, bdtp_tags):
-                    self.logger.debug(bdtp_tag)
                     if self.check_cutout(bdtp_tag):
+                        self.logger.debug(bdtp_tag)
                         self.set_group_tags(module, contr_index, tag_number)
+                        self.set_cutout_flag(bdtp_tag)
                         tag_number += 1
             self.all_bdtp_tags[contr_index] = self.group_tags
 
