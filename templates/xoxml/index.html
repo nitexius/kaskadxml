@@ -5,15 +5,16 @@
 <div class="weather">
     <div class="container mt-5">
         <div class="row">
-            <div class="col-4 offset-4">
-                <form method="POST">
+            <div class="col-3 offset-4">
+                <form method="POST" enctype="multipart/form-data">
                     {% csrf_token %}
-                    {{ form.as_table }}
+                    {{ form.as_p }}
                     <div class="form_error">{{ text_kl }}</div>
                     <div class="form_error">{{ text_bdtp }}</div>
                     <div class="form_error">{{ text_al }}</div>
+                    <div class="form_error">{{ text_error }}</div>
                     <div class="form_error">{{ text }} {{ len_new_tags }}</div>
-                    <input type="submit" value="Send">
+                    <button type="submit">Upload</button>
                 </form>
             </div>
         </div>
