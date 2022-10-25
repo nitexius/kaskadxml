@@ -8,7 +8,6 @@ from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
 from dataclasses import dataclass
 from .klogic_xml import KlogicAttrs
-from .klogic_indexes import FIRST_CONTR_INDEX, FIRST_TAG_INDEX, SETTINGS_INDEX, ALARM_SPLIT_INDEX
 from .alrm import alrm, stations
 from .indices import indices as i, constants as c, xo_types
 
@@ -181,7 +180,7 @@ class AlarmsXML:
     def check_central(self, element: Element, central_tags: list):
         """Определение контроллера, как контроллер централи"""
         self.central_contr = False
-        for in_out in element[FIRST_TAG_INDEX:]:
+        for in_out in element[i.first_tag:]:
             if self.central_contr:
                 break
             else:
@@ -205,7 +204,7 @@ class AlarmsXML:
             attrs.contr = str(module[attrs.group].attrib['Name'])
             attrs.tag_name = attrs.in_out.attrib['Name']
         else:
-            attrs.tag_settings = in_out[attrs.alarm_number][SETTINGS_INDEX]
+            attrs.tag_settings = in_out[attrs.alarm_number][i.settings]
             attrs.tag_name = in_out[attrs.alarm_number].attrib['Name']
             attrs.contr = str(module[attrs.group].attrib['Name'] + '\\' + 'Alarms')
         attrs.tag_full_name = f'{self.klogic_name.text}.{self.protocol_name.text}.{self.gm.text}.{attrs.contr}.{attrs.tag_name}'
@@ -278,7 +277,7 @@ class AlarmsXML:
             id=self.tag_id_in_alarms,
             alarm_flag=False,
             alarm_number=0,
-            tag_settings=in_out[SETTINGS_INDEX],
+            tag_settings=in_out[i.settings],
             tag_name='',
             contr='',
             tag_full_name=''
@@ -346,16 +345,16 @@ class AlarmsXML:
         """Формирование alarms.xml"""
         self.rename_main_group()
         central_tags = get_central_tags(tags)
-        for group in range(len(module))[FIRST_CONTR_INDEX:]:
+        for group in range(len(module))[i.first_contr:]:
             cutout_flag = False
             self.check_central(module[group], central_tags)
-            for in_out in module[group][FIRST_TAG_INDEX:]:
+            for in_out in module[group][i.first_tag:]:
                 for tag in tags:
 
                     if in_out.attrib['Name'] == 'Alarms':
-                        for alarm_number in range(len(in_out))[FIRST_TAG_INDEX:]:
+                        for alarm_number in range(len(in_out))[i.first_tag:]:
                             if all([
-                                in_out[alarm_number].attrib['Name'].split(f'{alarm_number}_')[ALARM_SPLIT_INDEX] == tag[
+                                in_out[alarm_number].attrib['Name'].split(f'{alarm_number}_')[i.alarm_split] == tag[
                                     'name'],
                                 tag['alarm_id'] != 'None',
                                 tag['alarm_id'] != '0'

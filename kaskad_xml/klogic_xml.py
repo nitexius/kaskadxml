@@ -186,6 +186,7 @@ class KlogicXML:
 
     def check_new_tag(self, exist_tags: Iterable, tag_name: str) -> bool:
         """Проверка нового параметра"""
+        #print(get_tag_value_list(exist_tags, 'name'))
         return not any([
             tag_name in self.new_tag_names,
             tag_name in get_tag_value_list(exist_tags, 'name')
