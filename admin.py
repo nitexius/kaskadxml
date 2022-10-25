@@ -1,17 +1,17 @@
 from django.contrib import admin
-from .models import Alarms, HistoryAttr, GoodTags, BadTags, NewTags, Cutout
+from .models import Alarm, HistoryAttr, GoodTag, BadTag, NewTag, Cutout
 
 from import_export.admin import ImportExportActionModelAdmin, ImportExportModelAdmin
 from import_export import resources
 
 
-admin.site.register(Alarms)
+admin.site.register(Alarm)
 admin.site.register(HistoryAttr)
 
 
 class GoodTagsResource(resources.ModelResource):
     class Meta:
-        model = GoodTags
+        model = GoodTag
 
 
 class GoodTagsAdmin(ImportExportModelAdmin):
@@ -20,12 +20,12 @@ class GoodTagsAdmin(ImportExportModelAdmin):
     search_fields = ['id', 'name', 'alarm_id']
 
 
-admin.site.register(GoodTags, GoodTagsAdmin)
+admin.site.register(GoodTag, GoodTagsAdmin)
 
 
 class BadTagsResource(resources.ModelResource):
     class Meta:
-        model = BadTags
+        model = BadTag
 
 
 class BadTagsAdmin(ImportExportActionModelAdmin):
@@ -34,21 +34,21 @@ class BadTagsAdmin(ImportExportActionModelAdmin):
     search_fields = ['id', 'name']
 
 
-admin.site.register(BadTags, BadTagsAdmin)
+admin.site.register(BadTag, BadTagsAdmin)
 
 
 class NewTagsResource(resources.ModelResource):
     class Meta:
-        model = NewTags
+        model = NewTag
 
 
 class NewTagsAdmin(ImportExportModelAdmin):
     resource_class = NewTagsResource
-    list_display = ['id', 'name', 'Controller', 'alarm_id', 'bdtp', 'noffl']
-    search_fields = ['name', 'Controller']
+    list_display = ['id', 'name', 'controller', 'alarm_id', 'bdtp', 'noffl']
+    search_fields = ['name', 'controller']
 
 
-admin.site.register(NewTags, NewTagsAdmin)
+admin.site.register(NewTag, NewTagsAdmin)
 
 
 class CutoutResource(resources.ModelResource):

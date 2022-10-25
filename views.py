@@ -1,17 +1,41 @@
-import io
 import logging
-import datetime
-import os
+import pathlib
 import zipfile
-from django.http import FileResponse, HttpResponse
-from pathlib import Path
+from django.http import HttpResponse
 from io import BytesIO
 from typing import Iterable, List
 from dataclasses import dataclass
 from django.shortcuts import render
 from .forms import KlogicForm
 from .kaskad_xml import AlarmsXML, KloggerXML, KlogicXML, ErrorMissingNofflTag, ErrorMissingProduct
-from .models import HistoryAttr, GoodTags, BadTags, Alarms, Cutout, NewTags
+from .models import HistoryAttr, GoodTag, BadTag, Alarm, Cutout, NewTag
+
+
+logger = logging.getLogger(__name__)
+
+
+class KlogicBadFormatError(Exception):
+    """Klogic XML: Неправильный формат"""
+
+
+class KloggerBadFormatError(Exception):
+    """Klogger XML: Неправильный формат"""
+
+
+class AlarmsBadFormatError(Exception):
+    """Klogger XML: Неправильный формат"""
+
+
+class NotEnoughVar(Exception):
+    """В группе Alarms у централи добавлены не все переменные"""
+
+
+class NewTagsError(Exception):
+    """Новые переменные"""
+
+
+class DefaultAlarmError(Exception):
+    """Шаблон Alarm XML не найден"""
 
 
 @dataclass
@@ -22,9 +46,9 @@ class OutputFiles:
 
 def get_tags() -> Iterable:
     exist_tags = []
-    for tag in GoodTags.get_good_tags_values():
+    for tag in GoodTag.get_tags_values():
         exist_tags.append(tag)
-    for tag in BadTags.get_bad_tags_values():
+    for tag in BadTag.get_tags_values():
         tag['alarm_id'] = 'None'
         tag['bdtp'] = False
         tag['noffl'] = False
@@ -52,6 +76,104 @@ def shift_create(klogic_xml: KlogicXML) -> BytesIO:
     return txt
 
 
+def get_checkboxes(request):
+    return request.POST.get('bd'), request.POST.get('alarm')
+
+
+def get_klogic_input_file(request):
+    PROT_CODE = '244'
+    xml_file = request.FILES['klogic_file']
+    xml_file_read = xml_file.read()
+    klogic_input_file = BytesIO(xml_file_read)
+    klogic_input_file.seek(0)
+    return (
+        KlogicXML(klogic_input_file, prot_code=PROT_CODE),
+        xml_file.name
+    )
+
+
+def get_klogger_input_file(request, klogic_xml: KlogicXML, station_id: int):
+    klogger_xml_file = request.FILES['klogger_file']
+    klogger_xml_file_read = klogger_xml_file.read()
+    klogger_input_file = BytesIO(klogger_xml_file_read)
+    klogger_input_file.seek(0)
+    return (
+        KloggerXML(klogger_input_file, klogic_xml.klogic_tree_find(), station_id),
+        klogger_xml_file.name
+    )
+
+
+def get_default_alarm_xml_path() -> pathlib.Path:
+    try:
+        default_alarm_xml_path = Alarm.objects.get(gm='default_alarm_xml').xml.path
+    except (Alarm.DoesNotExist, FileNotFoundError):
+        raise DefaultAlarmError('Шаблон Alarm XML не найден')
+    return default_alarm_xml_path
+
+
+def get_alarms_input_file(klogic_xml: KlogicXML, station_id: int):
+    return (
+        AlarmsXML(get_default_alarm_xml_path(), klogic_xml.klogic_tree_find(), station_id,
+                  Cutout.get_products_values()),
+        'Alarms.xml'
+    )
+
+
+def get_new_tags(klogic_xml):
+    try:
+        klogic_xml.find_module()
+        logger.debug(klogic_xml.module.tag)
+        klogic_xml.h_remove(HistoryAttr.get_h_attrs())
+        NewTag.delete_new_tags_all()
+        new_tags = klogic_xml.set_new_tags(get_tags())
+        if new_tags == -1:
+            raise NotEnoughVar('В группе Alarms у централи добавлены не все переменные')
+        return new_tags
+    except AttributeError:
+        raise KlogicBadFormatError('Klogic XML: Неправильный формат')
+
+
+def save_new_tags(new_tags):
+    for tag in new_tags:
+        new_tag = NewTag(id=tag.tag_id, name=tag.tag_name, controller=tag.controller)
+        new_tag.save()
+    raise NewTagsError(f'Новые переменные: {len(new_tags)}')
+
+
+def create_output_file(kaskad_module: KlogicXML or AlarmsXML or KloggerXML, filename: str) -> OutputFiles:
+    output_file = BytesIO()
+    kaskad_module.write(output_file)
+    return OutputFiles(
+            name=filename,
+            file=output_file.getbuffer()
+        )
+
+
+def create_shift_output_file(klogic_xml):
+    return OutputFiles(
+        name='Смещение.txt',
+        file=shift_create(klogic_xml).getbuffer()
+    )
+
+
+def update_klogic_xml(klogic_xml):
+    klogic_xml.delete_empty_groups()
+    klogic_xml.delete_tags(BadTag.get_tags_values())
+    klogic_xml.add_comment()
+    klogic_xml.set_noffl(GoodTag.get_tags_values())
+
+
+def update_klogger_xml(klogger_xml: KloggerXML, klogic_xml: KlogicXML) -> str:
+    logger.debug(klogger_xml.db_version.tag)
+    klogger_xml.delete_old_config()
+    return klogger_xml.set_klogger_xml(klogic_xml.module, GoodTag.get_bdtp_tags())
+
+
+def update_alarms_xml(alarm_xml: AlarmsXML, klogic_xml: KlogicXML) -> str:
+    logger.debug(alarm_xml.group_item.tag)
+    return alarm_xml.set_alarm_xml(klogic_xml.module, GoodTag.get_tags_values())
+
+
 def set_arch(zip_buffer: BytesIO, files: List[OutputFiles]) -> BytesIO:
     for file in files:
         with zipfile.ZipFile(zip_buffer, 'a') as zip_file:
@@ -60,118 +182,71 @@ def set_arch(zip_buffer: BytesIO, files: List[OutputFiles]) -> BytesIO:
 
 
 def index(request):
-    logger = logging.getLogger(__name__)
     output_files = []
     form = KlogicForm()
     context = {'form': form}
 
     if request.method == 'POST':
+        context['text_error'] = False
         station_id = request.POST.get('station')
-        xml_file = request.FILES['klogic_file'].read()
-        xml_filename = request.FILES['klogic_file'].name
-        bdtp_checkbox = request.POST.get('bd')
-        alarm_checkbox = request.POST.get('alarm')
-
-        klogic_input_file = BytesIO(xml_file)
-        klogic_input_file.seek(0)
-
-        klogic_xml = KlogicXML(klogic_input_file, prot_code='244')
+        bdtp_checkbox, alarm_checkbox = get_checkboxes(request)
+        klogic_xml, xml_filename = get_klogic_input_file(request)
+        gm = str(klogic_xml.klogic_tree_find().gm.text)
+        print(gm)
         try:
-            context['text_error'] = False
-            klogic_xml.find_module()
-            logger.debug(klogic_xml.module.tag)
-            klogic_xml.h_remove(HistoryAttr.get_h_attrs())
-            NewTags.delete_new_tags_all()
-            new_tags = klogic_xml.set_new_tags(get_tags())
-        except AttributeError:
-            context['text_kl'] = "Klogic XML: Неправильный формат"
-
-        if new_tags == -1:
-            context['text_error'] = "В группе Alarms у централи добавлены не все переменные"
-        else:
+            new_tags = get_new_tags(klogic_xml)
             if len(new_tags):
-                for tag in new_tags:
-                    new_tag = NewTags(id=tag.tag_id, name=tag.tag_name, Controller=tag.controller)
-                    new_tag.save()
-                context['text'] = "Новые переменные:"
-                context['len_new_tags'] = len(new_tags)
+                save_new_tags(new_tags)
             else:
-                klogic_xml.delete_empty_groups()
-                klogic_xml.delete_tags(BadTags.get_bad_tags_values())
-                klogic_xml.add_comment()
-                gm = klogic_xml.klogic_tree_find().gm.text
-                try:
-                    klogic_xml.set_noffl(GoodTags.get_good_tags_values())
-                    context['text_kl'] = "klogic XML: Обработка завершена"
-                except ErrorMissingNofflTag as e:
-                    context['text_error'] = e
-                klogic_output_file = BytesIO()
-                klogic_xml.write(klogic_output_file)
-                output_files.append(OutputFiles(
-                    name=xml_filename,
-                    file=klogic_output_file.getbuffer()
-                ))
-
-                shift = shift_create(klogic_xml)
-                output_files.append(OutputFiles(
-                    name='Смещение.txt',
-                    file=shift.getbuffer()
-                ))
+                update_klogic_xml(klogic_xml)
+                output_files.append(create_output_file(klogic_xml, xml_filename))
+                output_files.append(create_shift_output_file(klogic_xml))
+                context['text_kl'] = "klogic XML: Обработка завершена"
                 if bdtp_checkbox:
-                    klogger_xml_file = request.FILES['klogger_file'].read()
-                    klogger_xml_filename = request.FILES['klogger_file'].name
                     logger.debug('bdtp_checkbox:')
                     logger.debug(bdtp_checkbox)
-                    klogger_input_file = BytesIO(klogger_xml_file)
-                    klogger_input_file.seek(0)
-                    klogger_xml = KloggerXML(klogger_input_file, klogic_xml.klogic_tree_find(), station_id)
+                    klogger_xml, klogger_xml_filename = get_klogger_input_file(request, klogic_xml, station_id)
                     try:
-                        logger.debug(klogger_xml.db_version.tag)
-                        klogger_xml.delete_old_config()
-                        context['text_bdtp'] = klogger_xml.set_klogger_xml(klogic_xml.module,
-                                                                           GoodTags.get_bdtp_tags())
-                        klogger_output_file = BytesIO()
-                        klogger_xml.write(klogger_output_file)
-                        output_files.append(OutputFiles(
-                            name=klogger_xml_filename,
-                            file=klogger_output_file.getbuffer()
-                        ))
+                        context['text_bdtp'] = update_klogger_xml(klogger_xml, klogic_xml)
+                        output_files.append(create_output_file(klogger_xml, klogger_xml_filename))
                     except AttributeError:
-                        context['text_bdtp'] = "Klogger XML: Неправильный формат"
+                        raise KloggerBadFormatError('Klogger XML: Неправильный формат')
                 if alarm_checkbox:
-                    context['text_al'] = False
                     logger.debug('alarm_checkbox:')
                     logger.debug(alarm_checkbox)
+                    alarm_xml, alarm_xml_filename = get_alarms_input_file(klogic_xml, station_id)
                     try:
-                        default_alarm_xml_path = Alarms.objects.get(gm='default_alarm_xml').xml.path
-                        alarm_xml = AlarmsXML(
-                            default_alarm_xml_path,
-                            klogic_xml.klogic_tree_find(),
-                            station_id,
-                            Cutout.get_products_values()
-                        )
-                        try:
-                            logger.debug(alarm_xml.group_item.tag)
-                            context['text_al'] = alarm_xml.set_alarm_xml(klogic_xml.module,
-                                                                         GoodTags.get_good_tags_values())
-                            new_alarm_xml = BytesIO()
-                            alarm_xml.write(new_alarm_xml)
-                            output_files.append(OutputFiles(
-                                name='Alarms.xml',
-                                file=new_alarm_xml.getbuffer()
-                            ))
-                        except AttributeError:
-                            context['text_al'] = "Alarm XML: Неправильный формат"
-                        except ErrorMissingProduct as e:
-                            context['text_error'] = e
-                    except (Alarms.DoesNotExist, FileNotFoundError):
-                        context['text_al'] = "Alarm XML не найден"
+                        context['text_al'] = update_alarms_xml(alarm_xml, klogic_xml)
+                        output_files.append(create_output_file(alarm_xml, alarm_xml_filename))
+                    except AttributeError:
+                        raise AlarmsBadFormatError('Alarm XML: Неправильный формат')
+                    except ErrorMissingProduct as e:
+                        context['text_error'] = e
 
                 logger.debug(context)
-                if not context['text_error']:
-                    zip_buffer = set_arch(BytesIO(), output_files)
-                    response = HttpResponse(zip_buffer.getvalue(), content_type='application/zip')
-                    response['Content-Disposition'] = 'attachment; filename=output.zip'
-                    return response
+
+        except (
+                KlogicBadFormatError,
+                KloggerBadFormatError,
+                AlarmsBadFormatError,
+                DefaultAlarmError,
+                IndexError,
+                NotEnoughVar,
+                ErrorMissingNofflTag,
+                NewTagsError
+        ) as msg:
+            context['text_error'] = msg
+
+        if not context['text_error']:
+            zip_name = gm.split('(')[1].replace(')', '')
+            zip_buffer = set_arch(BytesIO(), output_files)
+            response = HttpResponse(
+                zip_buffer.getvalue(),
+                headers={
+                    'content_type': 'application/zip',
+                    'Content-Disposition': f'attachment; filename={zip_name}.zip'
+                }
+            )
+            return response
 
     return render(request, 'xoxml/index.html', context)

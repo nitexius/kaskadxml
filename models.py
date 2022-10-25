@@ -2,8 +2,8 @@ from django.db import models
 from .kaskad_xml import alrm, xo_choices
 
 
-class Alarms(models.Model):
-    """xml Аварии ИС Диспетчеризация ХО"""
+class Alarm(models.Model):
+    """Xml Аварии ИС Диспетчеризация ХО"""
     gm = models.CharField(max_length=100, verbose_name='Код ГМ', unique=True)
     xml = models.FileField(upload_to='media/alarms')
 
@@ -29,7 +29,7 @@ class Cutout(models.Model):
 
     @classmethod
     def get_products_values(cls):
-        products = list(Cutout.objects.all().values())
+        products = list(cls.objects.all().values())
         return products
 
     def __str__(self):
@@ -58,92 +58,52 @@ class HistoryAttr(models.Model):
         return self.h_attr
 
 
-class GoodTags(models.Model):
-    """Используемые переменные"""
-
+class Tag(models.Model):
     name = models.CharField(max_length=100, verbose_name='Название переменной', unique=True)
+
+    class Meta:
+        abstract = True
+        ordering = ['name']
+
+    @classmethod
+    def get_tags_values(cls):
+        tags = list(cls.objects.all().values())
+        return tags
+
+
+class GoodTag(Tag):
+    """Используемые переменные"""
     alarm_id = models.CharField(max_length=100, default='None', verbose_name='Код аварии', choices=alrm)
     bdtp = models.BooleanField(default=False, verbose_name='Архивируемая переменная')
     noffl = models.BooleanField(default=False, verbose_name='ФБ noffl')
 
-    class Meta:
-        ordering = ['name']
+    class Meta(Tag.Meta):
         verbose_name = 'Используемая переменная'
         verbose_name_plural = 'Используемые переменные'
 
     @classmethod
-    def get_good_tags_values(cls):
-        goodtag = list(GoodTags.objects.all().values())
-        return goodtag
-
-    @classmethod
-    def get_good_tags_all(cls):
-        goodtag = GoodTags.objects.all()
-        return goodtag
-
-    @classmethod
-    def get_all_id(cls):
-        return set(GoodTags.objects.values_list('id', flat=True))
-
-    @classmethod
-    def get_noffl_tags(cls):
-        nofflTag = GoodTags.objects.filter(noffl='1')
-        return nofflTag
-
-    @classmethod
     def get_bdtp_tags(cls):
-        bdtp_tags = list(GoodTags.objects.filter(bdtp='1').values())
-        # bdtp_tag = GoodTags.objects.filter(bdtp='1')
+        bdtp_tags = list(cls.objects.filter(bdtp='1').values())
         return bdtp_tags
-
-    @classmethod
-    def get_central_tags(cls):
-        central_tags = list(GoodTags.objects.filter(alarm_id='central').values())
-        return central_tags
-
-    @classmethod
-    def is_exist_tag(cls, tag_name: str):
-        return GoodTags.objects.filter(Name=tag_name).exists()
 
     def __str__(self):
         return self.name
 
 
-class BadTags(models.Model):
+class BadTag(Tag):
     """Удаляемые переменные"""
-    name = models.CharField(max_length=100, verbose_name='Название переменной', unique=True)
 
-    class Meta:
-        ordering = ['name']
+    class Meta(Tag.Meta):
         verbose_name = 'Удаляемая переменная'
         verbose_name_plural = 'Удаляемые переменные'
 
-    @classmethod
-    def get_bad_tags_values(cls):
-        bad_tag = list(BadTags.objects.all().values())
-        return bad_tag
-
-    @classmethod
-    def get_bad_tags_all(cls):
-        bad_tag = BadTags.objects.all()
-        return bad_tag
-
-    @classmethod
-    def get_all_id(cls):
-        return set(BadTags.objects.values_list('id', flat=True))
-
-    @classmethod
-    def is_exist_tag(cls, tag_name: str):
-        return BadTags.objects.filter(Name=tag_name).exists()
-
     def __str__(self):
         return self.name
 
 
-class NewTags(models.Model):
+class NewTag(Tag):
     """Новые переменные, отсутсвующие в GoodTags, BadTags"""
-    name = models.CharField(max_length=100, verbose_name='Название переменной')
-    Controller = models.CharField(max_length=100, default="", verbose_name='Название контроллера')
+    controller = models.CharField(max_length=100, default="", verbose_name='Название контроллера')
     alarm_id = models.CharField(max_length=100, default='None', verbose_name='Код аварии', choices=alrm)
     bdtp = models.BooleanField(default=False, verbose_name='Архивируемая переменная')
     noffl = models.BooleanField(default=False, verbose_name='ФБ noffl')
@@ -154,20 +114,8 @@ class NewTags(models.Model):
 
     @classmethod
     def delete_new_tags_all(cls):
-        new_tag = NewTags.objects.all()
+        new_tag = cls.objects.all()
         new_tag.delete()
-
-    def get_new_tags_all(cls):
-        new_tag = NewTags.objects.all()
-        return new_tag
-
-    @classmethod
-    def is_exist_tag(cls, tag_name: str):
-        return NewTags.objects.filter(Name=tag_name).exists()
-
-    @classmethod
-    def get_all_id(cls):
-        return set(NewTags.objects.values_list('id', flat=True))
 
     def __str__(self):
         return self.name
