@@ -59,63 +59,40 @@ class HistoryAttr(models.Model):
 
 
 class Tag(models.Model):
+    """Используемые переменные"""
     name = models.CharField(max_length=100, verbose_name='Название переменной', unique=True)
+    alarm_id = models.CharField(max_length=100, default='None', verbose_name='Код аварии', choices=alrm)
+    bdtp = models.BooleanField(default=False, verbose_name='Архивируемая переменная')
+    noffl = models.BooleanField(default=False, verbose_name='ФБ noffl')
+    bad_tag = models.BooleanField(default=False, verbose_name='Удаляемая переменная')
+    new_tag = models.BooleanField(default=False, verbose_name='Новая переменная')
+    controller = models.CharField(max_length=100, default="", verbose_name='Название контроллера')
 
     class Meta:
-        abstract = True
         ordering = ['name']
+        verbose_name = 'Переменная'
+        verbose_name_plural = 'Переменные'
 
     @classmethod
     def get_tags_values(cls):
         tags = list(cls.objects.all().values())
         return tags
 
-
-class GoodTag(Tag):
-    """Используемые переменные"""
-    alarm_id = models.CharField(max_length=100, default='None', verbose_name='Код аварии', choices=alrm)
-    bdtp = models.BooleanField(default=False, verbose_name='Архивируемая переменная')
-    noffl = models.BooleanField(default=False, verbose_name='ФБ noffl')
-
-    class Meta(Tag.Meta):
-        verbose_name = 'Используемая переменная'
-        verbose_name_plural = 'Используемые переменные'
-
     @classmethod
     def get_bdtp_tags(cls):
         bdtp_tags = list(cls.objects.filter(bdtp='1').values())
         return bdtp_tags
 
-    def __str__(self):
-        return self.name
-
-
-class BadTag(Tag):
-    """Удаляемые переменные"""
-
-    class Meta(Tag.Meta):
-        verbose_name = 'Удаляемая переменная'
-        verbose_name_plural = 'Удаляемые переменные'
-
-    def __str__(self):
-        return self.name
-
-
-class NewTag(Tag):
-    """Новые переменные, отсутсвующие в GoodTags, BadTags"""
-    controller = models.CharField(max_length=100, default="", verbose_name='Название контроллера')
-    alarm_id = models.CharField(max_length=100, default='None', verbose_name='Код аварии', choices=alrm)
-    bdtp = models.BooleanField(default=False, verbose_name='Архивируемая переменная')
-    noffl = models.BooleanField(default=False, verbose_name='ФБ noffl')
-
-    class Meta:
-        verbose_name = 'Новая переменная'
-        verbose_name_plural = 'Новые переменные'
+    @classmethod
+    def get_bad_tags(cls):
+        bad_tags = list(cls.objects.filter(bad_tag='1').values())
+        return bad_tags
 
     @classmethod
-    def delete_new_tags_all(cls):
-        new_tag = cls.objects.all()
-        new_tag.delete()
+    def delete_new_tags(cls):
+        new_tags = cls.objects.filter(new_tag='1')
+        for tag in new_tags:
+            tag.delete()
 
     def __str__(self):
         return self.name

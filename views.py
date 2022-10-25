@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from django.shortcuts import render
 from .forms import KlogicForm
 from .kaskad_xml import AlarmsXML, KloggerXML, KlogicXML, ErrorMissingNofflTag, ErrorMissingProduct
-from .models import HistoryAttr, GoodTag, BadTag, Alarm, Cutout, NewTag
+from .models import HistoryAttr, Tag, Alarm, Cutout
 
 
 logger = logging.getLogger(__name__)
@@ -44,16 +44,16 @@ class OutputFiles:
     file: bytes
 
 
-def get_tags() -> Iterable:
-    exist_tags = []
-    for tag in GoodTag.get_tags_values():
-        exist_tags.append(tag)
-    for tag in BadTag.get_tags_values():
-        tag['alarm_id'] = 'None'
-        tag['bdtp'] = False
-        tag['noffl'] = False
-        exist_tags.append(tag)
-    return exist_tags
+# def get_tags() -> Iterable:
+#     exist_tags = []
+#     for tag in GoodTag.get_tags_values():
+#         exist_tags.append(tag)
+#     for tag in BadTag.get_tags_values():
+#         tag['alarm_id'] = 'None'
+#         tag['bdtp'] = False
+#         tag['noffl'] = False
+#         exist_tags.append(tag)
+#     return exist_tags
 
 
 def shift_create(klogic_xml: KlogicXML) -> BytesIO:
@@ -124,8 +124,8 @@ def get_new_tags(klogic_xml):
         klogic_xml.find_module()
         logger.debug(klogic_xml.module.tag)
         klogic_xml.h_remove(HistoryAttr.get_h_attrs())
-        NewTag.delete_new_tags_all()
-        new_tags = klogic_xml.set_new_tags(get_tags())
+        Tag.delete_new_tags()
+        new_tags = klogic_xml.set_new_tags(Tag.get_tags_values())
         if new_tags == -1:
             raise NotEnoughVar('В группе Alarms у централи добавлены не все переменные')
         return new_tags
@@ -135,7 +135,8 @@ def get_new_tags(klogic_xml):
 
 def save_new_tags(new_tags):
     for tag in new_tags:
-        new_tag = NewTag(id=tag.tag_id, name=tag.tag_name, controller=tag.controller)
+        # new_tag = NewTag(id=tag.tag_id, name=tag.tag_name, controller=tag.controller)
+        new_tag = Tag(id=tag.tag_id, name=tag.tag_name, controller=tag.controller, new_tag=True)
         new_tag.save()
     raise NewTagsError(f'Новые переменные: {len(new_tags)}')
 
@@ -158,20 +159,20 @@ def create_shift_output_file(klogic_xml):
 
 def update_klogic_xml(klogic_xml):
     klogic_xml.delete_empty_groups()
-    klogic_xml.delete_tags(BadTag.get_tags_values())
+    klogic_xml.delete_tags(Tag.get_bad_tags())
     klogic_xml.add_comment()
-    klogic_xml.set_noffl(GoodTag.get_tags_values())
+    klogic_xml.set_noffl(Tag.get_tags_values())
 
 
 def update_klogger_xml(klogger_xml: KloggerXML, klogic_xml: KlogicXML) -> str:
     logger.debug(klogger_xml.db_version.tag)
     klogger_xml.delete_old_config()
-    return klogger_xml.set_klogger_xml(klogic_xml.module, GoodTag.get_bdtp_tags())
+    return klogger_xml.set_klogger_xml(klogic_xml.module, Tag.get_bdtp_tags())
 
 
 def update_alarms_xml(alarm_xml: AlarmsXML, klogic_xml: KlogicXML) -> str:
     logger.debug(alarm_xml.group_item.tag)
-    return alarm_xml.set_alarm_xml(klogic_xml.module, GoodTag.get_tags_values())
+    return alarm_xml.set_alarm_xml(klogic_xml.module, Tag.get_tags_values())
 
 
 def set_arch(zip_buffer: BytesIO, files: List[OutputFiles]) -> BytesIO:
