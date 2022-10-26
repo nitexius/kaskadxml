@@ -58,14 +58,25 @@ class HistoryAttr(models.Model):
         return self.h_attr
 
 
+class TagType(models.Model):
+    tag_type = models.CharField(max_length=100, default='new_tag', verbose_name='Тип переменной', unique=True)
+
+    class Meta:
+        ordering = ['tag_type']
+        verbose_name = 'Тип переменной'
+        verbose_name_plural = 'Типы переменных'
+
+    def __str__(self):
+        return self.tag_type
+
+
 class Tag(models.Model):
     """Используемые переменные"""
     name = models.CharField(max_length=100, verbose_name='Название переменной', unique=True)
+    tag_type = models.ForeignKey(TagType, on_delete=models.SET_NULL, null=True)
     alarm_id = models.CharField(max_length=100, default='None', verbose_name='Код аварии', choices=alrm)
     bdtp = models.BooleanField(default=False, verbose_name='Архивируемая переменная')
     noffl = models.BooleanField(default=False, verbose_name='ФБ noffl')
-    bad_tag = models.BooleanField(default=False, verbose_name='Удаляемая переменная')
-    new_tag = models.BooleanField(default=False, verbose_name='Новая переменная')
     controller = models.CharField(max_length=100, default="", verbose_name='Название контроллера')
 
     class Meta:
@@ -85,12 +96,12 @@ class Tag(models.Model):
 
     @classmethod
     def get_bad_tags(cls):
-        bad_tags = list(cls.objects.filter(bad_tag='1').values())
+        bad_tags = list(cls.objects.filter(tag_type='2').values())
         return bad_tags
 
     @classmethod
     def delete_new_tags(cls):
-        new_tags = cls.objects.filter(new_tag='1')
+        new_tags = cls.objects.filter(tag_type='3')
         for tag in new_tags:
             tag.delete()
 

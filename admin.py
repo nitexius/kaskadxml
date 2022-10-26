@@ -1,12 +1,11 @@
 from django.contrib import admin
-from .models import Alarm, HistoryAttr, Tag, Cutout
-
+from .models import Alarm, HistoryAttr, Tag, Cutout, TagType
 from import_export.admin import ImportExportModelAdmin
 from import_export import resources
 
-
 admin.site.register(Alarm)
 admin.site.register(HistoryAttr)
+admin.site.register(TagType)
 
 
 class TagsResource(resources.ModelResource):
@@ -16,7 +15,8 @@ class TagsResource(resources.ModelResource):
 
 class TagsAdmin(ImportExportModelAdmin):
     resource_class = TagsResource
-    list_display = ['id', 'name', 'alarm_id', 'bdtp', 'noffl', 'bad_tag', 'new_tag', 'controller']
+    list_display = ['id', 'name', 'alarm_id', 'bdtp', 'noffl', 'tag_type', 'controller']
+    list_filter = ('tag_type', 'bdtp', 'noffl', 'alarm_id')
     search_fields = ['id', 'name', 'alarm_id']
 
 

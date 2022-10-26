@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from django.shortcuts import render
 from .forms import KlogicForm
 from .kaskad_xml import AlarmsXML, KloggerXML, KlogicXML, ErrorMissingNofflTag, ErrorMissingProduct
-from .models import HistoryAttr, Tag, Alarm, Cutout
+from .models import HistoryAttr, Tag, Alarm, Cutout, TagType
 
 
 logger = logging.getLogger(__name__)
@@ -42,18 +42,6 @@ class DefaultAlarmError(Exception):
 class OutputFiles:
     name: str
     file: bytes
-
-
-# def get_tags() -> Iterable:
-#     exist_tags = []
-#     for tag in GoodTag.get_tags_values():
-#         exist_tags.append(tag)
-#     for tag in BadTag.get_tags_values():
-#         tag['alarm_id'] = 'None'
-#         tag['bdtp'] = False
-#         tag['noffl'] = False
-#         exist_tags.append(tag)
-#     return exist_tags
 
 
 def shift_create(klogic_xml: KlogicXML) -> BytesIO:
@@ -136,7 +124,8 @@ def get_new_tags(klogic_xml):
 def save_new_tags(new_tags):
     for tag in new_tags:
         # new_tag = NewTag(id=tag.tag_id, name=tag.tag_name, controller=tag.controller)
-        new_tag = Tag(id=tag.tag_id, name=tag.tag_name, controller=tag.controller, new_tag=True)
+        new_tag_type = TagType.objects.filter(tag_type='new_tag').get()
+        new_tag = Tag(id=tag.tag_id, name=tag.tag_name, controller=tag.controller, tag_type=new_tag_type)
         new_tag.save()
     raise NewTagsError(f'Новые переменные: {len(new_tags)}')
 
@@ -193,7 +182,6 @@ def index(request):
         bdtp_checkbox, alarm_checkbox = get_checkboxes(request)
         klogic_xml, xml_filename = get_klogic_input_file(request)
         gm = str(klogic_xml.klogic_tree_find().gm.text)
-        print(gm)
         try:
             new_tags = get_new_tags(klogic_xml)
             if len(new_tags):
