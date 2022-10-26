@@ -1,6 +1,12 @@
 from django.db import models
 from .kaskad_xml import alrm, xo_choices
 
+TAG_TYPES = (
+    ('1', 'good_tag'),
+    ('2', 'bad_tag'),
+    ('3', 'new_tag'),
+)
+
 
 class Alarm(models.Model):
     """Xml Аварии ИС Диспетчеризация ХО"""
@@ -58,22 +64,27 @@ class HistoryAttr(models.Model):
         return self.h_attr
 
 
-class TagType(models.Model):
-    tag_type = models.CharField(max_length=100, default='new_tag', verbose_name='Тип переменной', unique=True)
-
-    class Meta:
-        ordering = ['tag_type']
-        verbose_name = 'Тип переменной'
-        verbose_name_plural = 'Типы переменных'
-
-    def __str__(self):
-        return self.tag_type
+# class TagType(models.Model):
+#     tag_type = models.CharField(max_length=100, default='new_tag', verbose_name='Тип переменной', unique=True)
+#
+#     class Meta:
+#         ordering = ['tag_type']
+#         verbose_name = 'Тип переменной'
+#         verbose_name_plural = 'Типы переменных'
+#
+#     def __str__(self):
+#         return self.tag_type
 
 
 class Tag(models.Model):
     """Используемые переменные"""
     name = models.CharField(max_length=100, verbose_name='Название переменной', unique=True)
-    tag_type = models.ForeignKey(TagType, on_delete=models.SET_NULL, null=True)
+    # tag_type = models.ForeignKey(TagType, on_delete=models.SET_NULL, null=True)
+    tag_type = models.CharField(
+        max_length=100,
+        verbose_name='Тип переменной',
+        choices=TAG_TYPES
+    )
     alarm_id = models.CharField(max_length=100, default='None', verbose_name='Код аварии', choices=alrm)
     bdtp = models.BooleanField(default=False, verbose_name='Архивируемая переменная')
     noffl = models.BooleanField(default=False, verbose_name='ФБ noffl')
