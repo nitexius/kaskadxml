@@ -10,7 +10,6 @@ from .forms import KlogicForm
 from .kaskad_xml import AlarmsXML, KloggerXML, KlogicXML, ErrorMissingNofflTag, ErrorMissingProduct
 from .models import HistoryAttr, Tag, Alarm, Cutout
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -132,9 +131,9 @@ def create_output_file(kaskad_module: KlogicXML or AlarmsXML or KloggerXML, file
     output_file = BytesIO()
     kaskad_module.write(output_file)
     return OutputFiles(
-            name=filename,
-            file=output_file.getbuffer()
-        )
+        name=filename,
+        file=output_file.getbuffer()
+    )
 
 
 def create_shift_output_file(klogic_xml):
@@ -144,22 +143,37 @@ def create_shift_output_file(klogic_xml):
     )
 
 
-def update_klogic_xml(klogic_xml):
+def update_klogic_xml(klogic_xml: KlogicXML, xml_filename: str, output_files: list) -> str:
     klogic_xml.delete_empty_groups()
     klogic_xml.delete_tags(Tag.get_bad_tags())
     klogic_xml.add_comment()
     klogic_xml.set_noffl(Tag.get_tags_values())
+    output_files.extend(
+        [create_output_file(klogic_xml, xml_filename),
+         create_shift_output_file(klogic_xml)])
+    return "klogic XML: Обработка завершена"
 
 
-def update_klogger_xml(klogger_xml: KloggerXML, klogic_xml: KlogicXML) -> str:
-    logger.debug(klogger_xml.db_version.tag)
+def update_klogger_xml(klogger_xml: KloggerXML, klogger_xml_filename: str, klogic_xml: KlogicXML, output_files: list) \
+        -> str:
     klogger_xml.delete_old_config()
-    return klogger_xml.set_klogger_xml(klogic_xml.module, Tag.get_bdtp_tags())
+    try:
+        logger.debug(klogger_xml.db_version.tag)
+        result = klogger_xml.set_klogger_xml(klogic_xml.module, Tag.get_bdtp_tags())
+        output_files.extend([create_output_file(klogger_xml, klogger_xml_filename)])
+        return result
+    except AttributeError:
+        raise KloggerBadFormatError('Klogger XML: Неправильный формат')
 
 
-def update_alarms_xml(alarm_xml: AlarmsXML, klogic_xml: KlogicXML) -> str:
-    logger.debug(alarm_xml.group_item.tag)
-    return alarm_xml.set_alarm_xml(klogic_xml.module, Tag.get_tags_values())
+def update_alarms_xml(alarm_xml: AlarmsXML, alarm_xml_filename: str, klogic_xml: KlogicXML, output_files: list) -> str:
+    try:
+        logger.debug(alarm_xml.group_item.tag)
+        result = alarm_xml.set_alarm_xml(klogic_xml.module, Tag.get_tags_values())
+        output_files.extend([create_output_file(alarm_xml, alarm_xml_filename)])
+        return result
+    except AttributeError:
+        raise AlarmsBadFormatError('Alarm XML: Неправильный формат')
 
 
 def set_arch(zip_buffer: BytesIO, files: List[OutputFiles]) -> BytesIO:
@@ -176,7 +190,6 @@ def index(request):
         form = KlogicForm(request.POST, request.FILES)
         context = {'form': form}
         if form.is_valid():
-            context['text_error'] = False
             station_id = form.cleaned_data['station']
             bdtp_checkbox, alarm_checkbox = get_checkboxes(form)
             klogic_xml, xml_filename = get_klogic_input_file(form)
@@ -186,30 +199,25 @@ def index(request):
                 if len(new_tags):
                     save_new_tags(new_tags)
                 else:
-                    update_klogic_xml(klogic_xml)
-                    output_files.append(create_output_file(klogic_xml, xml_filename))
-                    output_files.append(create_shift_output_file(klogic_xml))
-                    context['text_kl'] = "klogic XML: Обработка завершена"
+                    context['text_kl'] = update_klogic_xml(klogic_xml, xml_filename, output_files)
                     if bdtp_checkbox:
-                        logger.debug('bdtp_checkbox:')
-                        logger.debug(bdtp_checkbox)
+                        logger.debug(f'bdtp_checkbox: {bdtp_checkbox}')
                         klogger_xml, klogger_xml_filename = get_klogger_input_file(form, klogic_xml, station_id)
-                        try:
-                            context['text_bdtp'] = update_klogger_xml(klogger_xml, klogic_xml)
-                            output_files.append(create_output_file(klogger_xml, klogger_xml_filename))
-                        except AttributeError:
-                            raise KloggerBadFormatError('Klogger XML: Неправильный формат')
+                        context['text_bdtp'] = update_klogger_xml(
+                            klogger_xml,
+                            klogger_xml_filename,
+                            klogic_xml,
+                            output_files
+                        )
                     if alarm_checkbox:
-                        logger.debug('alarm_checkbox:')
-                        logger.debug(alarm_checkbox)
+                        logger.debug(f'alarm_checkbox: {alarm_checkbox}')
                         alarm_xml, alarm_xml_filename = get_alarms_input_file(klogic_xml, station_id)
-                        try:
-                            context['text_al'] = update_alarms_xml(alarm_xml, klogic_xml)
-                            output_files.append(create_output_file(alarm_xml, alarm_xml_filename))
-                        except AttributeError:
-                            raise AlarmsBadFormatError('Alarm XML: Неправильный формат')
-                        except ErrorMissingProduct as e:
-                            context['text_error'] = e
+                        context['text_al'] = update_alarms_xml(
+                            alarm_xml,
+                            alarm_xml_filename,
+                            klogic_xml,
+                            output_files
+                        )
 
                     logger.debug(context)
 
@@ -221,11 +229,12 @@ def index(request):
                     IndexError,
                     NotEnoughVar,
                     ErrorMissingNofflTag,
-                    NewTagsError
+                    NewTagsError,
+                    ErrorMissingProduct
             ) as msg:
                 context['text_error'] = msg
 
-            if not context['text_error']:
+            if 'text_error' not in context:
                 zip_name = gm.split('(')[1].replace(')', '')
                 zip_buffer = set_arch(BytesIO(), output_files)
                 response = HttpResponse(
