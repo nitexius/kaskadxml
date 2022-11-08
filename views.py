@@ -43,6 +43,13 @@ class OutputFiles:
     file: bytes
 
 
+@dataclass
+class kargs:
+    form: KlogicForm
+    klogic_xml: KlogicXML
+    station_id: int
+
+
 def shift_create(klogic_xml: KlogicXML) -> BytesIO:
     """Подсчет смещения адресов контроллеров"""
     shift_attr = klogic_xml.shift()
@@ -73,21 +80,15 @@ def get_klogic_input_file(form):
     xml_file_read = xml_file.read()
     klogic_input_file = BytesIO(xml_file_read)
     klogic_input_file.seek(0)
-    return (
-        KlogicXML(klogic_input_file, prot_code=PROT_CODE),
-        xml_file.name
-    )
+    return KlogicXML(klogic_input_file, PROT_CODE, xml_file.name)
 
 
-def get_klogger_input_file(form, klogic_xml: KlogicXML, station_id: int):
-    klogger_xml_file = form.cleaned_data['klogger_file']
+def get_klogger_input_file(args):
+    klogger_xml_file = args.form.cleaned_data['klogger_file']
     klogger_xml_file_read = klogger_xml_file.read()
     klogger_input_file = BytesIO(klogger_xml_file_read)
     klogger_input_file.seek(0)
-    return (
-        KloggerXML(klogger_input_file, klogic_xml.klogic_tree_find(), station_id),
-        klogger_xml_file.name
-    )
+    return KloggerXML(klogger_input_file, args.klogic_xml.klogic_tree_find(), args.station_id, klogger_xml_file.name)
 
 
 def get_default_alarm_xml_path() -> pathlib.Path:
@@ -98,12 +99,9 @@ def get_default_alarm_xml_path() -> pathlib.Path:
     return default_alarm_xml_path
 
 
-def get_alarms_input_file(klogic_xml: KlogicXML, station_id: int):
-    return (
-        AlarmsXML(get_default_alarm_xml_path(), klogic_xml.klogic_tree_find(), station_id,
-                  Cutout.get_products_values()),
-        'Alarms.xml'
-    )
+def get_alarms_input_file(args):
+    return AlarmsXML(get_default_alarm_xml_path(), args.klogic_xml.klogic_tree_find(), args.station_id,
+                     Cutout.get_products_values())
 
 
 def get_new_tags(klogic_xml):
@@ -124,14 +122,13 @@ def save_new_tags(new_tags):
     for tag in new_tags:
         new_tag = Tag(id=tag.tag_id, name=tag.tag_name, controller=tag.controller, tag_type='3')
         new_tag.save()
-    raise NewTagsError(f'Новые переменные: {len(new_tags)}')
 
 
-def create_output_file(kaskad_module: KlogicXML or AlarmsXML or KloggerXML, filename: str) -> OutputFiles:
+def create_output_file(kaskad_module: KlogicXML or AlarmsXML or KloggerXML) -> OutputFiles:
     output_file = BytesIO()
     kaskad_module.write(output_file)
     return OutputFiles(
-        name=filename,
+        name=kaskad_module.xml_file_name,
         file=output_file.getbuffer()
     )
 
@@ -143,35 +140,34 @@ def create_shift_output_file(klogic_xml):
     )
 
 
-def update_klogic_xml(klogic_xml: KlogicXML, xml_filename: str, output_files: list) -> str:
-    klogic_xml.delete_empty_groups()
-    klogic_xml.delete_tags(Tag.get_bad_tags())
-    klogic_xml.add_comment()
-    klogic_xml.set_noffl(Tag.get_tags_values())
-    output_files.extend(
-        [create_output_file(klogic_xml, xml_filename),
-         create_shift_output_file(klogic_xml)])
-    return "klogic XML: Обработка завершена"
+def update_klogic_xml(klogic_xml: KlogicXML):
+    new_tags = get_new_tags(klogic_xml)
+    if len(new_tags):
+        save_new_tags(new_tags)
+        raise NewTagsError(f'Новые переменные: {len(new_tags)}')
+    else:
+        klogic_xml.delete_empty_groups()
+        klogic_xml.delete_tags(Tag.get_bad_tags())
+        klogic_xml.add_comment()
+        klogic_xml.set_noffl(Tag.get_tags_values())
+        return create_output_file(klogic_xml), create_shift_output_file(klogic_xml)
 
 
-def update_klogger_xml(klogger_xml: KloggerXML, klogger_xml_filename: str, klogic_xml: KlogicXML, output_files: list) \
-        -> str:
+def update_klogger_xml(klogger_xml: KloggerXML, args):
     klogger_xml.delete_old_config()
     try:
         logger.debug(klogger_xml.db_version.tag)
-        result = klogger_xml.set_klogger_xml(klogic_xml.module, Tag.get_bdtp_tags())
-        output_files.extend([create_output_file(klogger_xml, klogger_xml_filename)])
-        return result
+        klogger_xml.set_klogger_xml(args.klogic_xml.module, Tag.get_bdtp_tags())
+        return create_output_file(klogger_xml)
     except AttributeError:
         raise KloggerBadFormatError('Klogger XML: Неправильный формат')
 
 
-def update_alarms_xml(alarm_xml: AlarmsXML, alarm_xml_filename: str, klogic_xml: KlogicXML, output_files: list) -> str:
+def update_alarms_xml(alarm_xml: AlarmsXML, args):
     try:
         logger.debug(alarm_xml.group_item.tag)
-        result = alarm_xml.set_alarm_xml(klogic_xml.module, Tag.get_tags_values())
-        output_files.extend([create_output_file(alarm_xml, alarm_xml_filename)])
-        return result
+        alarm_xml.set_alarm_xml(args.klogic_xml.module, Tag.get_tags_values())
+        return create_output_file(alarm_xml)
     except AttributeError:
         raise AlarmsBadFormatError('Alarm XML: Неправильный формат')
 
@@ -183,6 +179,11 @@ def set_arch(zip_buffer: BytesIO, files: List[OutputFiles]) -> BytesIO:
     return zip_buffer
 
 
+def get_files(input_file, output_file, args):
+    file = input_file(args)
+    return output_file(file, args)
+
+
 def index(request):
     output_files = []
 
@@ -192,34 +193,27 @@ def index(request):
         if form.is_valid():
             station_id = form.cleaned_data['station']
             bdtp_checkbox, alarm_checkbox = get_checkboxes(form)
-            klogic_xml, xml_filename = get_klogic_input_file(form)
+            klogic_xml = get_klogic_input_file(form)
+            print(klogic_xml)
             gm = str(klogic_xml.klogic_tree_find().gm.text)
             try:
-                new_tags = get_new_tags(klogic_xml)
-                if len(new_tags):
-                    save_new_tags(new_tags)
-                else:
-                    context['text_kl'] = update_klogic_xml(klogic_xml, xml_filename, output_files)
-                    if bdtp_checkbox:
-                        logger.debug(f'bdtp_checkbox: {bdtp_checkbox}')
-                        klogger_xml, klogger_xml_filename = get_klogger_input_file(form, klogic_xml, station_id)
-                        context['text_bdtp'] = update_klogger_xml(
-                            klogger_xml,
-                            klogger_xml_filename,
-                            klogic_xml,
-                            output_files
-                        )
-                    if alarm_checkbox:
-                        logger.debug(f'alarm_checkbox: {alarm_checkbox}')
-                        alarm_xml, alarm_xml_filename = get_alarms_input_file(klogic_xml, station_id)
-                        context['text_al'] = update_alarms_xml(
-                            alarm_xml,
-                            alarm_xml_filename,
-                            klogic_xml,
-                            output_files
-                        )
+                output_files.extend(update_klogic_xml(klogic_xml))
 
-                    logger.debug(context)
+                params = kargs(
+                    form=form,
+                    klogic_xml=klogic_xml,
+                    station_id=station_id
+                )
+
+                handlers = (
+                    (get_klogger_input_file, update_klogger_xml) if bdtp_checkbox else None,
+                    (get_alarms_input_file, update_alarms_xml) if alarm_checkbox else None
+                )
+
+                for getter_func, update_func in filter(None, handlers):
+                    output_files.append(get_files(getter_func, update_func, params))
+
+                logger.debug(context)
 
             except (
                     KlogicBadFormatError,
