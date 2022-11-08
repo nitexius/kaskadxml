@@ -110,8 +110,9 @@ def filter_smart_divide_out(inout: Element) -> bool:
 class KlogicXML:
     """ Класс для  KlogicXML"""
 
-    def __init__(self, xml_path, prot_code: str):
+    def __init__(self, xml_path, prot_code: str, xml_file_name: str):
         self.xml_path = xml_path
+        self.xml_file_name = xml_file_name
         self.parsed_xml = ElementTree.parse(self.xml_path)
         self.prot_code = prot_code
         self.module = None

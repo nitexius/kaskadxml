@@ -35,8 +35,9 @@ def get_contr_name(module: Element, contr_index: int) -> str:
 class KloggerXML:
     """ Класс для  KloggerXML"""
 
-    def __init__(self, xml_path: pathlib.Path, kl_find: KlogicAttrs, station_id: int):
+    def __init__(self, xml_path: pathlib.Path, kl_find: KlogicAttrs, station_id: int, xml_file_name: str):
         self.xml_path = xml_path
+        self.xml_file_name = xml_file_name
         self.parsed_xml = ElementTree.parse(self.xml_path)
         self.db_version = self.parsed_xml.find('.//DBVersion')
         self.klogger_root = self.parsed_xml.getroot()

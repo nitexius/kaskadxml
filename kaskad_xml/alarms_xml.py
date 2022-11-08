@@ -109,6 +109,7 @@ class AlarmsXML:
 
     def __init__(self, xml_path: pathlib.Path, kl_find: KlogicAttrs, station_id: int, products: Iterable):
         self.xml_path = xml_path
+        self.xml_file_name = 'Alarms.xml'
         self.parsed_xml = ElementTree.parse(self.xml_path)
         self.alarm_root = self.parsed_xml.getroot()
         self.group_item = self.parsed_xml.find('.//GroupItem')
