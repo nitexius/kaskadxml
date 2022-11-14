@@ -1,8 +1,5 @@
 import logging
 import pathlib
-import datetime
-import os
-from pathlib import Path
 from typing import Iterable
 from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
@@ -10,6 +7,7 @@ from dataclasses import dataclass
 from .klogic_xml import KlogicAttrs
 from .alrm import alrm, stations
 from .indices import indices as i, constants as c, xo_types
+from .exceptions import ErrorMissingProduct
 
 
 @dataclass
@@ -43,10 +41,6 @@ class AlarmTag:
 
     def __init__(self, alarm_tag_attrs: AlarmTagAttrs):
         self.alarm_tag_attr = alarm_tag_attrs
-
-
-class ErrorMissingProduct(Exception):
-    """ Исключение при отсутствующих тегах nofll у контроллера"""
 
 
 def tree_insert(parent_group: Element, insert_index: int, child_group: str, text):
@@ -90,18 +84,14 @@ def mark_group_not_for_del(group: Element):
 
 def get_measure_units_index(alarm_tag: AlarmTag) -> int:
     """Получение индекса для группы MeasureUnits"""
-    index = 3
-    if not get_measure_units(alarm_tag.alarm_tag_attr.in_out):
-        index = 2
-    return index
+    return (
+        i.me_not_exist
+        if not get_measure_units(alarm_tag.alarm_tag_attr.in_out) else i.me_exist
+    )
 
 
 def get_central_tags(tags: Iterable) -> list:
-    central_tags = []
-    for tag in tags:
-        if tag['alarm_id'] == 'central':
-            central_tags.append(tag)
-    return central_tags
+    return [tag for tag in tags if tag['alarm_id'] == 'central']
 
 
 class AlarmsXML:
@@ -391,7 +381,6 @@ class AlarmsXML:
 
         if len(self.new_product):
             raise ErrorMissingProduct(f'Alarm XML: Новый вид продукта: {self.new_product}')
-            # return "Alarm XML: Новый вид продукта" + f'{self.new_product}'
         else:
             return "Alarm XML: Обработка завершена"
 

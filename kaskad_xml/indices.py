@@ -26,6 +26,8 @@ constants_map = {
     'stk_cutout': 0,
     'ceh_cutout': 12,
     'server_cutout': 18,
+    'brace_l': '{',
+    'brace_r': '}'
 }
 
 indices_map = {
@@ -71,7 +73,9 @@ indices_map = {
     'name': 0,
     'alarm_split': 1,
     'service_inputs': 3,
-    'n_input_index': 5
+    'n_input_index': 5,
+    'me_exist': 3,
+    'me_not_exist': 2
 }
 
 

@@ -1,12 +1,10 @@
 import logging
-import datetime
-import os
-from pathlib import Path
 from typing import Iterable, List
 from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
 from dataclasses import dataclass
 from .indices import indices as i, constants as c, smart_divide_all_n
+from .exceptions import ErrorCentralAlarm, ErrorMissingNofflTag
 
 
 @dataclass
@@ -40,14 +38,6 @@ class KlogicAttrs:
     te: Element
     klogic_name: Element
     syst_num: Element
-
-
-class ErrorCentralAlarm(Exception):
-    """ Исключение при отсутствующих авариях у централей 351, 551"""
-
-
-class ErrorMissingNofflTag(Exception):
-    """ Исключение при отсутствующих тегах nofll у контроллера"""
 
 
 class Tag:
@@ -187,7 +177,6 @@ class KlogicXML:
 
     def check_new_tag(self, exist_tags: Iterable, tag_name: str) -> bool:
         """Проверка нового параметра"""
-        #print(get_tag_value_list(exist_tags, 'name'))
         return not any([
             tag_name in self.new_tag_names,
             tag_name in get_tag_value_list(exist_tags, 'name')
