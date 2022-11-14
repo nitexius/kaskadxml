@@ -35,8 +35,7 @@ class Cutout(models.Model):
 
     @classmethod
     def get_products_values(cls):
-        products = list(cls.objects.all().values())
-        return products
+        return list(cls.objects.all().values())
 
     def __str__(self):
         return self.name
@@ -64,22 +63,9 @@ class HistoryAttr(models.Model):
         return self.h_attr
 
 
-# class TagType(models.Model):
-#     tag_type = models.CharField(max_length=100, default='new_tag', verbose_name='Тип переменной', unique=True)
-#
-#     class Meta:
-#         ordering = ['tag_type']
-#         verbose_name = 'Тип переменной'
-#         verbose_name_plural = 'Типы переменных'
-#
-#     def __str__(self):
-#         return self.tag_type
-
-
 class Tag(models.Model):
     """Используемые переменные"""
     name = models.CharField(max_length=100, verbose_name='Название переменной', unique=True)
-    # tag_type = models.ForeignKey(TagType, on_delete=models.SET_NULL, null=True)
     tag_type = models.CharField(
         max_length=100,
         verbose_name='Тип переменной',
@@ -97,18 +83,15 @@ class Tag(models.Model):
 
     @classmethod
     def get_tags_values(cls):
-        tags = list(cls.objects.all().values())
-        return tags
+        return list(cls.objects.all().values())
 
     @classmethod
     def get_bdtp_tags(cls):
-        bdtp_tags = list(cls.objects.filter(bdtp='1').values())
-        return bdtp_tags
+        return list(cls.objects.filter(bdtp='1').values())
 
     @classmethod
     def get_bad_tags(cls):
-        bad_tags = list(cls.objects.filter(tag_type='2').values())
-        return bad_tags
+        return list(cls.objects.filter(tag_type='2').values())
 
     @classmethod
     def delete_new_tags(cls):
