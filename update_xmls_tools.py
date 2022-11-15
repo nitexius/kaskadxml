@@ -21,7 +21,7 @@ def update_klogic_xml(klogic_xml: KlogicXML):
         klogic_xml.delete_empty_groups()
         klogic_xml.delete_tags(Tag.get_bad_tags())
         klogic_xml.add_comment()
-        klogic_xml.set_noffl(Tag.get_tags_values())
+        klogic_xml.set_noffl(Tag.get_noffl_tags())
         return create_output_file(klogic_xml), create_shift_output_file(klogic_xml)
 
 
@@ -38,7 +38,7 @@ def update_klogger_xml(klogger_xml: KloggerXML, args):
 def update_alarms_xml(alarm_xml: AlarmsXML, args):
     try:
         logger.debug(alarm_xml.group_item.tag)
-        alarm_xml.set_alarm_xml(args.klogic_xml.module, Tag.get_tags_values())
+        alarm_xml.set_alarm_xml(args.klogic_xml.module, Tag.get_alarm_tags())
         return create_output_file(alarm_xml)
     except AttributeError:
         raise AlarmsBadFormatError('Alarm XML: Неправильный формат')

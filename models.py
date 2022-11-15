@@ -35,7 +35,7 @@ class Cutout(models.Model):
 
     @classmethod
     def get_products_values(cls):
-        return list(cls.objects.all().values())
+        return list(cls.objects.values('name', 'cutout', 'xo_type'))
 
     def __str__(self):
         return self.name
@@ -65,13 +65,13 @@ class HistoryAttr(models.Model):
 
 class Tag(models.Model):
     """Используемые переменные"""
-    name = models.CharField(max_length=100, verbose_name='Название переменной', unique=True)
+    name = models.CharField(max_length=100, verbose_name='Название переменной', unique=True)                #
     tag_type = models.CharField(
         max_length=100,
         verbose_name='Тип переменной',
         choices=TAG_TYPES
     )
-    alarm_id = models.CharField(max_length=100, default='None', verbose_name='Код аварии', choices=alrm)
+    alarm_id = models.CharField(max_length=100, default='None', verbose_name='Код аварии', choices=alrm)    #
     bdtp = models.BooleanField(default=False, verbose_name='Архивируемая переменная')
     noffl = models.BooleanField(default=False, verbose_name='ФБ noffl')
     controller = models.CharField(max_length=100, default="", verbose_name='Название контроллера')
@@ -82,8 +82,16 @@ class Tag(models.Model):
         verbose_name_plural = 'Переменные'
 
     @classmethod
-    def get_tags_values(cls):
-        return list(cls.objects.all().values())
+    def get_tags_names(cls):
+        return list(cls.objects.values('id', 'name'))
+
+    @classmethod
+    def get_noffl_tags(cls):
+        return list(cls.objects.filter(noffl='1').values('name'))
+
+    @classmethod
+    def get_alarm_tags(cls):
+        return list(cls.objects.exclude(alarm_id='0').exclude(alarm_id='None').values('name', 'alarm_id'))
 
     @classmethod
     def get_bdtp_tags(cls):

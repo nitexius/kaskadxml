@@ -9,7 +9,7 @@ def get_new_tags(klogic_xml):
         logger.debug(klogic_xml.module.tag)
         klogic_xml.h_remove(HistoryAttr.get_h_attrs())
         Tag.delete_new_tags()
-        new_tags = klogic_xml.set_new_tags(Tag.get_tags_values())
+        new_tags = klogic_xml.set_new_tags(Tag.get_tags_names())
         if new_tags == -1:
             raise NotEnoughVar('В группе Alarms у централи добавлены не все переменные')
         return new_tags
