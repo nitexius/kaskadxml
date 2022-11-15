@@ -111,6 +111,7 @@ class AlarmsXML:
         self.syst_num = kl_find.syst_num
         self.tag_id_in_alarms = 1
         self.central_contr = False
+        self.cutout_flag = False
         self.new_product = set()
         self.all_tag_alrm_id = []
         self.station_name = self.get_station_name()
@@ -332,18 +333,33 @@ class AlarmsXML:
                     child.tag = child.tag.replace(f'{index}{group_name}', f'{group_name}')
                     child.tag = child.tag.replace('tempAlarms', 'Alarms')
 
+    def r12_insert(self, module: Element, alarm_tag: AlarmTag):
+        if self.central_contr:
+            self.alarm_insert(module, alarm_tag)
+
+    def a03_insert(self, module: Element, alarm_tag: AlarmTag):
+        if not self.central_contr:
+            self.alarm_insert(module, alarm_tag)
+
+    def cutout_insert(self, module: Element, alarm_tag: AlarmTag):
+        if not self.cutout_flag:
+            self.alarm_insert(module, alarm_tag)
+            self.cutout_flag = True
+
     def set_alarm_xml(self, module: Element, tags: Iterable):
         """Формирование alarms.xml"""
         self.rename_main_group()
         central_tags = get_central_tags(tags)
         for group in range(len(module))[i.first_contr:]:
-            cutout_flag = False
+            self.cutout_flag = False
             self.check_central(module[group], central_tags)
             for in_out in module[group][i.first_tag:]:
+                group_len = len(in_out)
                 for tag in tags:
-
                     if in_out.attrib['Name'] == 'Alarms':
-                        for alarm_number in range(len(in_out))[i.first_tag:]:
+                        for alarm_number, in_out_group in enumerate(in_out, i.first_tag):
+                            if alarm_number == group_len:
+                                break
                             if all([
                                 in_out[alarm_number].attrib['Name'].split(f'{alarm_number}_')[i.alarm_split] == tag[
                                     'name'],
@@ -361,20 +377,13 @@ class AlarmsXML:
                         tag['alarm_id'] != '0'
                     ]):
                         alarm_tag = self.set_alarm_tag(group, in_out, tag)
-                        if tag['alarm_id'] == 'r12':
-                            if self.central_contr:
-                                self.alarm_insert(module, alarm_tag)
-                        else:
-                            if tag['alarm_id'] == 'A03-alarm-delay':
-                                if not self.central_contr:
-                                    self.alarm_insert(module, alarm_tag)
-                            else:
-                                if tag['alarm_id'] == 'Cutout' and not cutout_flag:
-                                    self.alarm_insert(module, alarm_tag)
-                                    cutout_flag = True
-                                else:
-                                    if tag['alarm_id'] != 'Cutout':
-                                        self.alarm_insert(module, alarm_tag)
+                        args = [module, alarm_tag]
+                        data_struct = {
+                            'r12': self.r12_insert,
+                            'A03-alarm-delay': self.a03_insert,
+                            'Cutout': self.cutout_insert
+                        }
+                        data_struct.get(tag['alarm_id'], self.alarm_insert)(*args)
 
         self.delete_empty_groups()
         self.remove_service_attrs('.//GroupItem', 'Alarms', self.all_tag_alrm_id)

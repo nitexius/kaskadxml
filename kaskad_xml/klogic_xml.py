@@ -130,7 +130,7 @@ class KlogicXML:
     def filter_noffl_tag(self, tag: Element) -> bool:
         """Фильтр параметра noffl"""
         return (True
-                if self.checked_tag['noffl'] and tag.attrib['Name'] == self.checked_tag['name'] else False
+                if tag.attrib['Name'] == self.checked_tag['name'] else False
                 )
 
     def get_noffl_tag(self, inout: Element, good_tags: Iterable) -> Element:
