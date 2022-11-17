@@ -350,40 +350,35 @@ class AlarmsXML:
         """Формирование alarms.xml"""
         self.rename_main_group()
         central_tags = get_central_tags(tags)
-        for group in range(len(module))[i.first_contr:]:
-            self.cutout_flag = False
-            self.check_central(module[group], central_tags)
-            for in_out in module[group][i.first_tag:]:
-                group_len = len(in_out)
-                for tag in tags:
-                    if in_out.attrib['Name'] == 'Alarms':
-                        for alarm_number, in_out_group in enumerate(in_out, i.first_tag):
-                            if alarm_number == group_len:
-                                break
-                            if all([
-                                in_out[alarm_number].attrib['Name'].split(f'{alarm_number}_')[i.alarm_split] == tag[
-                                    'name'],
-                                tag['alarm_id'] != 'None',
-                                tag['alarm_id'] != '0'
-                            ]):
-                                alarm_tag = self.set_alarm_tag(group, in_out, tag)
-                                alarm_tag.alarm_tag_attr.alarm_flag = True
-                                alarm_tag.alarm_tag_attr.alarm_number = alarm_number
-                                self.alarm_insert(module, alarm_tag)
+        for group, module_group in enumerate(module, i.first_contr):
+            try:
+                self.cutout_flag = False
+                self.check_central(module[group], central_tags)
+                for in_out in module[group][i.first_tag:]:
+                    for tag in tags:
+                        if in_out.attrib['Name'] == 'Alarms':
+                            for alarm_number, in_out_group in enumerate(in_out):
+                                if in_out[alarm_number].tag == 'Settings':
+                                    continue
+                                tag_name = in_out[alarm_number].attrib['Name'].split(f'{alarm_number}_')[
+                                    i.alarm_split]
+                                if tag_name == tag['name']:
+                                    alarm_tag = self.set_alarm_tag(group, in_out, tag)
+                                    alarm_tag.alarm_tag_attr.alarm_flag = True
+                                    alarm_tag.alarm_tag_attr.alarm_number = alarm_number
+                                    self.alarm_insert(module, alarm_tag)
 
-                    if all([
-                        in_out.attrib['Name'] == tag['name'],
-                        tag['alarm_id'] != 'None',
-                        tag['alarm_id'] != '0'
-                    ]):
-                        alarm_tag = self.set_alarm_tag(group, in_out, tag)
-                        args = [module, alarm_tag]
-                        data_struct = {
-                            'r12': self.r12_insert,
-                            'A03-alarm-delay': self.a03_insert,
-                            'Cutout': self.cutout_insert
-                        }
-                        data_struct.get(tag['alarm_id'], self.alarm_insert)(*args)
+                        if in_out.attrib['Name'] == tag['name']:
+                            alarm_tag = self.set_alarm_tag(group, in_out, tag)
+                            args = [module, alarm_tag]
+                            alarm_tag_insert_map = {
+                                'r12': self.r12_insert,
+                                'A03-alarm-delay': self.a03_insert,
+                                'Cutout': self.cutout_insert
+                            }
+                            alarm_tag_insert_map.get(tag['alarm_id'], self.alarm_insert)(*args)
+            except IndexError:
+                break
 
         self.delete_empty_groups()
         self.remove_service_attrs('.//GroupItem', 'Alarms', self.all_tag_alrm_id)

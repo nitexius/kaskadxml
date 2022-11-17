@@ -119,22 +119,26 @@ class KloggerXML:
 
     def get_bdtp_tags(self, module: Element, bdtp_tags: Iterable):
         """Получение всех архивируемых параметров, с разделением по контроллерам"""
-        for contr_index in range(len(module))[i.first_contr:]:
-            tag_number = 0
-            self.group_tags = {}
-            self.cutout_flag = False
-            self.all_groups.append(contr_index)
-            self.insert_grp_config(contr_index, get_contr_name(module, contr_index))
-            self.logger.debug(get_contr_name(module, contr_index))
+        for contr_index, group in enumerate(module, i.first_contr):
+            try:
+                controller = module[contr_index]
+                tag_number = 0
+                self.group_tags = {}
+                self.cutout_flag = False
+                self.all_groups.append(contr_index)
+                self.insert_grp_config(contr_index, get_contr_name(module, contr_index))
+                self.logger.debug(get_contr_name(module, contr_index))
 
-            for self.checked_tag in module[contr_index][i.first_tag:]:
-                for bdtp_tag in filter(self.filter_bdtp_tag, bdtp_tags):
-                    if self.check_cutout(bdtp_tag):
-                        self.logger.debug(bdtp_tag)
-                        self.set_group_tags(module, contr_index, tag_number)
-                        self.set_cutout_flag(bdtp_tag)
-                        tag_number += 1
-            self.all_bdtp_tags[contr_index] = self.group_tags
+                for self.checked_tag in controller[i.first_tag:]:
+                    for bdtp_tag in filter(self.filter_bdtp_tag, bdtp_tags):
+                        if self.check_cutout(bdtp_tag):
+                            self.logger.debug(bdtp_tag)
+                            self.set_group_tags(module, contr_index, tag_number)
+                            self.set_cutout_flag(bdtp_tag)
+                            tag_number += 1
+                self.all_bdtp_tags[contr_index] = self.group_tags
+            except IndexError:
+                break
 
     def set_valtype(self, grp_index: int, par_index: int) -> str:
         return (
