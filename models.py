@@ -83,23 +83,23 @@ class Tag(models.Model):
 
     @classmethod
     def get_tags_names(cls):
-        return list(cls.objects.values('id', 'name'))
+        return cls.objects.values('id', 'name')
 
     @classmethod
     def get_noffl_tags(cls):
-        return list(cls.objects.filter(noffl='1').values('name'))
+        return cls.objects.filter(noffl='1').values('name')
 
     @classmethod
     def get_alarm_tags(cls):
-        return list(cls.objects.exclude(alarm_id='0').exclude(alarm_id='None').values('name', 'alarm_id'))
+        return cls.objects.exclude(alarm_id__in=['0', 'None']).values('name', 'alarm_id')
 
     @classmethod
     def get_bdtp_tags(cls):
-        return list(cls.objects.filter(bdtp='1').values())
+        return cls.objects.filter(bdtp='1').values()
 
     @classmethod
     def get_bad_tags(cls):
-        return list(cls.objects.filter(tag_type='2').values())
+        return cls.objects.filter(tag_type='2').values()
 
     @classmethod
     def delete_new_tags(cls):
