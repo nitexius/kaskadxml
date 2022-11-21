@@ -27,7 +27,8 @@ constants_map = {
     'ceh_cutout': 12,
     'server_cutout': 18,
     'brace_l': '{',
-    'brace_r': '}'
+    'brace_r': '}',
+    'shift_file_name': 'Смещение.txt'
 }
 
 indices_map = {
@@ -66,6 +67,7 @@ indices_map = {
     'first_tag': 1,
     'first_contr': 3,
     'first_fb_input': 1,
+    'last_noffl_input': 13,
     'first_fb': 1,
     'tag_connected': 0,
     'fb_input_connected': 1,
