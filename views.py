@@ -4,8 +4,16 @@ from io import BytesIO
 from django.shortcuts import render
 from .forms import KlogicForm
 from .kaskad_xml import KlogicXML
-from .files_tools import get_klogic_input_file, get_klogger_input_file, get_alarms_input_file, get_files, set_arch
-from .update_xmls_tools import update_klogic_xml, update_klogger_xml, update_alarms_xml
+from .tools import (
+    set_klogic_xml,
+    set_klogger_xml,
+    set_alarms_xml,
+    transform_file,
+    set_arch,
+    update_klogic_xml,
+    update_klogger_xml,
+    update_alarms_xml
+)
 from .log_utils import logger
 from .kaskad_xml import (
     ErrorMissingProduct,
@@ -30,6 +38,14 @@ def get_checkboxes(form):
     return form.cleaned_data['bd'], form.cleaned_data['alarm']
 
 
+def get_zip_name(gm: str) ->str:
+    try:
+        zip_name = gm.split('(')[1].replace(')', '')
+    except IndexError:
+        zip_name = 'output'
+    return zip_name
+
+
 def index(request):
     output_files = []
 
@@ -39,7 +55,7 @@ def index(request):
         if form.is_valid():
             station_id = form.cleaned_data['station']
             bdtp_checkbox, alarm_checkbox = get_checkboxes(form)
-            klogic_xml = get_klogic_input_file(form)
+            klogic_xml = set_klogic_xml(form)
             gm = str(klogic_xml.klogic_tree_find().gm.text)
             try:
                 output_files.extend(update_klogic_xml(klogic_xml))
@@ -51,12 +67,12 @@ def index(request):
                 )
 
                 handlers = (
-                    (get_klogger_input_file, update_klogger_xml) if bdtp_checkbox else None,
-                    (get_alarms_input_file, update_alarms_xml) if alarm_checkbox else None
+                    (set_klogger_xml, update_klogger_xml) if bdtp_checkbox else None,
+                    (set_alarms_xml, update_alarms_xml) if alarm_checkbox else None
                 )
 
                 for getter_func, update_func in filter(None, handlers):
-                    output_files.append(get_files(getter_func, update_func, params))
+                    output_files.append(transform_file(getter_func, update_func, params))
 
                 logger.debug(context)
 
@@ -74,13 +90,12 @@ def index(request):
                 context['text_error'] = msg
 
             if 'text_error' not in context:
-                zip_name = gm.split('(')[1].replace(')', '')
                 zip_buffer = set_arch(BytesIO(), output_files)
                 response = HttpResponse(
                     zip_buffer.getvalue(),
                     headers={
                         'content_type': 'application/zip',
-                        'Content-Disposition': f'attachment; filename={zip_name}.zip'
+                        'Content-Disposition': f'attachment; filename={get_zip_name(gm)}.zip'
                     }
                 )
                 return response

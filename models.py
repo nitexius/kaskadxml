@@ -26,7 +26,7 @@ class Cutout(models.Model):
     """Уставки для продуктов (Контроль уставок)"""
     name = models.CharField(max_length=100, verbose_name='Наименование продукта', unique=True)
     cutout = models.IntegerField(default=-50, verbose_name='Уставка')
-    xo_type = models.CharField(max_length=100, default='None', verbose_name='Серверная/Машзал', choices=xo_choices)
+    xo_type = models.CharField(max_length=100, default='None', verbose_name='Серверная/Машзал/Камеры', choices=xo_choices)
 
     class Meta:
         ordering = ['name']
@@ -83,7 +83,7 @@ class Tag(models.Model):
 
     @classmethod
     def get_tags_names(cls):
-        return cls.objects.values('id', 'name')
+        return cls.objects.exclude(tag_type='3').values('id', 'name')
 
     @classmethod
     def get_noffl_tags(cls):
@@ -101,11 +101,6 @@ class Tag(models.Model):
     def get_bad_tags(cls):
         return cls.objects.filter(tag_type='2').values()
 
-    @classmethod
-    def delete_new_tags(cls):
-        new_tags = cls.objects.filter(tag_type='3')
-        for tag in new_tags:
-            tag.delete()
-
     def __str__(self):
         return self.name
+
