@@ -60,10 +60,8 @@ def get_group_tags(tag_groups: Element) -> List[str]:
             try:
                 group_tag_names.append(
                     tag_groups[alarm_number].attrib['Name'].split(f'{alarm_number}_')[i.alarm_split])
-            except KeyError:
+            except (KeyError, IndexError):
                 pass
-            except IndexError:
-                raise ErrorCentralAlarm('В группе Alarms у централи добавлены не все переменные')
     else:
         group_tag_names.append(tag_groups.attrib['Name'])
     return group_tag_names

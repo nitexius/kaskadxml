@@ -17,6 +17,11 @@ type_names = {
     'W': 'Аналоговый выход (Целочисленный)'
 }
 
+sensor_error_indices = {
+    17: 'SdA_se',
+    32: 'SsA_se'
+}
+
 constants_map = {
     'num_of_inputs': 10,  # Количество входов в каждом Функциональном блоке noffl
     'empty_klogic_group_len': 2,

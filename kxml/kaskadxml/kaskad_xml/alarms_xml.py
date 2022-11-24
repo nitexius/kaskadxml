@@ -6,7 +6,7 @@ from xml.etree.ElementTree import Element
 from dataclasses import dataclass
 from .klogic_xml import KlogicAttrs
 from .alrm import alrm, stations
-from .indices import indices as i, constants as c, xo_types
+from .indices import indices as i, constants as c, xo_types, sensor_error_indices as se_i
 from .exceptions import ErrorMissingProduct
 
 
@@ -44,6 +44,7 @@ def get_child_group(child_group: str, text):
 
 
 def get_measure_units(in_out: Element):
+    """ Получение единицы измерения переменной """
     try:
         measure_units = in_out.attrib['MeasU']
     except KeyError:
@@ -52,6 +53,7 @@ def get_measure_units(in_out: Element):
 
 
 def get_klogic_id(tag_settings: Element) -> str:
+    """ Получение адреса переменной """
     kid = ''
     for setting in tag_settings.iter('KId'):
         kid = setting.text
@@ -59,6 +61,7 @@ def get_klogic_id(tag_settings: Element) -> str:
 
 
 def get_value_type(tag_settings: Element) -> int:
+    """ Получение типа переменной """
     value_type = 1
     for setting in tag_settings.iter('PropList'):
         if setting.attrib['TagType'] == 'B':
@@ -84,15 +87,13 @@ def get_measure_units_index(alarm_tag: AlarmTagAttrs) -> int:
 
 
 def get_central_tags(tags: Iterable) -> list:
+    """ Получение переменных, для проверки контроллера централи """
     return [tag for tag in tags if tag['alarm_id'] == 'central']
 
 
 def server_cutout(xo_type: str) -> str:
-    if any([
-        xo_type == 'server',
-        xo_type == 'central_room',
-    ]):
-        return str(c.server_cutout)
+    """ Получение уставки для Серверной/Маш-зала """
+    return c.server_cutout
 
 
 class AlarmsXML:
@@ -111,6 +112,9 @@ class AlarmsXML:
         self.gm = kl_find.gm
         self.syst_num = kl_find.syst_num
         self.contr_name = None
+        self.verif_tag = None
+        self.alarm_number = None
+        self.bad_central_alarm_conf = None
         self.tag_id_in_alarms = 1
         self.central_contr = False
         self.cutout_flag = False
@@ -138,6 +142,7 @@ class AlarmsXML:
         return cutout
 
     def filter_contr_name(self, product):
+        """ Поиск полного названия контроллера в таблице контроля уставок """
         if self.contr_name == product['name']:
             return product
 
@@ -174,7 +179,7 @@ class AlarmsXML:
             products = filter(self.filter_contr_name, self.products)
             for prod in products:
                 result = CutoutAttrs(
-                    cutout=check_cutout_map.get(prod['xo_type'], self.check_cutout)(self.contr_name),
+                    cutout=str(check_cutout_map.get(prod['xo_type'], self.check_cutout)(self.contr_name)),
                     xo_type=prod['xo_type']
                 )
         return result
@@ -206,8 +211,8 @@ class AlarmsXML:
             attrs.contr = str(module[attrs.group].attrib['Name'])
             attrs.tag_name = attrs.in_out.attrib['Name']
         else:
-            attrs.tag_settings = in_out[attrs.alarm_number][i.settings]
-            attrs.tag_name = in_out[attrs.alarm_number].attrib['Name']
+            attrs.tag_settings = in_out[i.settings]
+            attrs.tag_name = in_out.attrib['Name']
             attrs.contr = str(module[attrs.group].attrib['Name'] + '\\' + 'Alarms')
         attrs.tag_full_name = f'{self.klogic_name.text}.{self.protocol_name.text}.{self.gm.text}.{attrs.contr}.{attrs.tag_name}'
         return attrs.tag_full_name
@@ -343,14 +348,48 @@ class AlarmsXML:
                     child.tag = child.tag.replace('tempAlarms', 'Alarms')
 
     def r12_insert(self, module: Element, alarm_tag: AlarmTagAttrs):
+        """ Вставка аварии по R12 для централи """
         if self.central_contr:
             self.alarm_insert(module, alarm_tag)
 
     def a03_insert(self, module: Element, alarm_tag: AlarmTagAttrs):
+        """ Вставка аварии А03 контроллеров потребителей """
         if not self.central_contr:
             self.alarm_insert(module, alarm_tag)
 
+    def get_alarms_group_tag(self, in_out):
+        """ Получение аварийных переменных для централей 351, 551 """
+        if in_out.tag != 'Settings':
+            tag_name = in_out.attrib['Name'].split(f'{self.alarm_number}_')[i.alarm_split]
+            self.alarm_number += 1
+            if tag_name == self.verif_tag['name']:
+                return in_out
+    
+    def unknown_sensor_insert(self, module: Element, group: int, in_out: Element, tag: dict, alarm_number: int):
+        """ Вставка аварии неизвестного датчика по порядковому номеру """
+        alarm_id = se_i.get(alarm_number)
+        if alarm_id:
+            alarm_tag = self.set_alarm_tag(
+                group,
+                in_out,
+                {
+                    'name': 'Ошибка датчика',
+                    'alarm_id': se_i.get(alarm_number)
+                }
+            )
+            alarm_tag.alarm_flag = True
+            alarm_tag.alarm_number = alarm_number
+            self.alarm_insert(module, alarm_tag)
+
+    def central_alarms_insert(self, module: Element, group: int, in_out: Element, tag: dict, alarm_number: int):
+        """ Вставка аварийного параметра централей 351, 551 """
+        alarm_tag = self.set_alarm_tag(group, in_out, tag)
+        alarm_tag.alarm_flag = True
+        alarm_tag.alarm_number = alarm_number
+        self.alarm_insert(module, alarm_tag)
+    
     def cutout_insert(self, module: Element, alarm_tag: AlarmTagAttrs):
+        """ Вставка аварии контроля уставок потребителей """
         if not self.cutout_flag:
             self.alarm_insert(module, alarm_tag)
             self.cutout_flag = True
@@ -364,19 +403,22 @@ class AlarmsXML:
                 self.cutout_flag = False
                 self.check_central(module[group], central_tags)
                 for in_out in module[group][i.first_tag:]:
-                    for tag in tags:
-                        if in_out.attrib['Name'] == 'Alarms':
-                            for alarm_number, in_out_group in enumerate(in_out):
-                                if in_out[alarm_number].tag == 'Settings':
-                                    continue
-                                tag_name = in_out[alarm_number].attrib['Name'].split(f'{alarm_number}_')[
-                                    i.alarm_split]
-                                if tag_name == tag['name']:
-                                    alarm_tag = self.set_alarm_tag(group, in_out, tag)
-                                    alarm_tag.alarm_flag = True
-                                    alarm_tag.alarm_number = alarm_number
-                                    self.alarm_insert(module, alarm_tag)
+                    if in_out.attrib['Name'] == 'Alarms':
+                        for self.verif_tag in tags:
+                            self.bad_central_alarm_conf = {
+                                'alarm_number': 0,
+                                'flag': False
+                            }
+                            self.alarm_number = 1
+                            central_alarm_tag_insert_map = {
+                                'unknown_sensor_error': self.unknown_sensor_insert
+                            }
+                            central_alarms_tags = filter(self.get_alarms_group_tag, in_out)
+                            for central_alarms_tag in central_alarms_tags:
+                                args = [module, group, central_alarms_tag, self.verif_tag, self.alarm_number - 1]
+                                central_alarm_tag_insert_map.get(self.verif_tag['alarm_id'], self.central_alarms_insert)(*args)
 
+                    for tag in tags:
                         if in_out.attrib['Name'] == tag['name']:
                             alarm_tag = self.set_alarm_tag(group, in_out, tag)
                             args = [module, alarm_tag]
@@ -386,6 +428,7 @@ class AlarmsXML:
                                 'Cutout': self.cutout_insert
                             }
                             alarm_tag_insert_map.get(tag['alarm_id'], self.alarm_insert)(*args)
+                        
             except IndexError:
                 break
 
