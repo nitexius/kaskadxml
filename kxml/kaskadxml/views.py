@@ -56,6 +56,7 @@ def index(request):
             station_id = form.cleaned_data['station']
             bdtp_checkbox, alarm_checkbox = get_checkboxes(form)
             klogic_xml = set_klogic_xml(form)
+
             gm = str(klogic_xml.klogic_tree_find().gm.text)
             try:
                 output_files.extend(update_klogic_xml(klogic_xml))
