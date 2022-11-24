@@ -114,7 +114,6 @@ class AlarmsXML:
         self.contr_name = None
         self.verif_tag = None
         self.alarm_number = None
-        self.bad_central_alarm_conf = None
         self.tag_id_in_alarms = 1
         self.central_contr = False
         self.cutout_flag = False
@@ -405,10 +404,6 @@ class AlarmsXML:
                 for in_out in module[group][i.first_tag:]:
                     if in_out.attrib['Name'] == 'Alarms':
                         for self.verif_tag in tags:
-                            self.bad_central_alarm_conf = {
-                                'alarm_number': 0,
-                                'flag': False
-                            }
                             self.alarm_number = 1
                             central_alarm_tag_insert_map = {
                                 'unknown_sensor_error': self.unknown_sensor_insert
