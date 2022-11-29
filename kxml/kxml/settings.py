@@ -23,7 +23,7 @@ LOG_DIR = f'{BASE_DIR}/logs_settings'
 # See https://docs.djangoproject.com/en/3.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-c9x5!788#^(vi1^-!1zr&0fj@kuv6_ra4hh4dykb(tbb8*y1^j'
+SECRET_KEY = ''
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
