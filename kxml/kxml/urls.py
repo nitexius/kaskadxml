@@ -23,6 +23,7 @@ from django.views.static import serve
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('kaskadxml.urls')),
+    path('', include('dgu.urls')),
 ]
 
 if settings.DEBUG:
