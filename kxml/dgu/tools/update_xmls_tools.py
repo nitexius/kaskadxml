@@ -15,16 +15,6 @@ def update_klogic_xml(klogic_xml: KlogicXML):
         return create_output_file(klogic_xml)
 
 
-# def update_klogger_xml(klogger_xml: KloggerXML, args):
-#     klogger_xml.delete_old_config()
-#     try:
-#         logger.debug(klogger_xml.db_version.tag)
-#         klogger_xml.set_klogger_xml(args.klogic_xml.module, Tag.get_bdtp_tags())
-#         return create_output_file(klogger_xml)
-#     except AttributeError:
-#         raise KloggerBadFormatError('Klogger XML: Неправильный формат')
-#
-#
 def update_alarms_xml(alarm_xml: AlarmsXML, args):
     try:
         logger.debug(alarm_xml.group_item.tag)
@@ -32,3 +22,4 @@ def update_alarms_xml(alarm_xml: AlarmsXML, args):
         return create_output_file(alarm_xml)
     except AttributeError:
         raise AlarmsBadFormatError('Alarm XML: Неправильный формат')
+    

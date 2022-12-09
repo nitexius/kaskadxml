@@ -8,8 +8,6 @@ def get_new_tags(klogic_xml):
         klogic_xml.find_module()
         logger.debug(klogic_xml.module.tag)
         new_tags = klogic_xml.set_new_tags(Dgu_tag.get_tags_names())
-        # if new_tags == -1:
-        #     raise NotEnoughVar('В группе Alarms у централи добавлены не все переменные')
         return new_tags
     except AttributeError:
         raise KlogicBadFormatError('Klogic XML: Неправильный формат')
