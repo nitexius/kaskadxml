@@ -16,7 +16,7 @@ class TagsAdmin(ImportExportModelAdmin):
     resource_class = TagsResource
     list_display = ['id', 'name', 'alarm_id', 'bdtp', 'noffl', 'tag_type', 'controller']
     list_filter = ('tag_type', 'bdtp', 'noffl', 'alarm_id')
-    search_fields = ['id', 'name', 'alarm_id', 'controller']
+    search_fields = ['id', 'name', 'alarm_id']
 
 
 admin.site.register(Tag, TagsAdmin)
