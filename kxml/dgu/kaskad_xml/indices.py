@@ -29,7 +29,15 @@ constants_map = {
     'brace_l': '{',
     'brace_r': '}',
     'ups_klogic_path': 'enterprises\\apc\\products\\hardware\\ups',
-    'ups_offline_klogic_path': 'enterprises\\apc\\products\\hardware\\ups'
+    'ups_offline_klogic_path': 'enterprises\\apc\\products\\hardware\\ups',
+    'chars': '0123456789ABCDEF',
+    'mnemo_id_length': [8, 4, 4, 4, 12],
+    'null_id': '00000000-0000-0000-0000-000000000000',
+    'parent_group_id': '{F7DA6197-1B22-4BFC-8CBF-38BDB38FCAA8}',
+    'template_id': '{4384E820-3F74-4B3D-B57E-5DDE8E718808}',
+    'not_virtual_permissions': 'üüüüüü',
+    'permissions1': '111111',
+    'permissions3': '333333'
 }
 
 indices_map = {
@@ -83,7 +91,8 @@ indices_map = {
     'protocol': 1,
     'ibp_number': 1,
     'ibp_type': 3,
-    'new_group': 2
+    'new_group': 2,
+    'last_id_segment': 12
 }
 
 
