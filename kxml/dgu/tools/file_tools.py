@@ -5,7 +5,7 @@ from io import BytesIO
 from kaskadxml.tools import OutputFiles, get_input_file
 from kaskadxml.kaskad_xml import DefaultAlarmError
 from dgu.models import Alarm_dgu
-from dgu.kaskad_xml import KlogicXML, AlarmsXML
+from dgu.kaskad_xml import KlogicXML, AlarmsXML, MnemoListXML
 
 
 def set_klogic_xml(form):
@@ -31,3 +31,11 @@ def get_default_alarm_xml_path() -> pathlib.Path:
 def set_alarms_xml(args):
     """ Создание класса AlarmsXML """
     return AlarmsXML(get_default_alarm_xml_path(), args.klogic_xml.klogic_tree_find(), args.station_id)
+
+def set_mnemolist_xml(args):
+    """ Создание класса KloggerXML """
+    mnemolist_xml_file = args.form.cleaned_data['mnemolist_file']
+    mnemolist_input_file = get_input_file(
+        file=mnemolist_xml_file.read()
+    )
+    return MnemoListXML(mnemolist_input_file, args.klogic_xml.klogic_tree_find(), args.station_id)

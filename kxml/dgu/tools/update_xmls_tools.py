@@ -1,5 +1,5 @@
 from dgu.models import Dgu_tag
-from dgu.kaskad_xml import KlogicXML, AlarmsXML
+from dgu.kaskad_xml import KlogicXML, AlarmsXML, MnemoListXML
 from .new_tags_tools import get_new_tags, save_new_tags
 from kaskadxml.kaskad_xml import NewTagsError, AlarmsBadFormatError
 from kaskadxml.log_utils import logger
@@ -22,4 +22,7 @@ def update_alarms_xml(alarm_xml: AlarmsXML, args):
         return create_output_file(alarm_xml)
     except AttributeError:
         raise AlarmsBadFormatError('Alarm XML: Неправильный формат')
-    
+
+def update_mnemolist_xml(mnemolist_xml: MnemoListXML, args):
+    mnemolist_xml.set_mnemolist_xml(args.klogic_xml)
+    return create_output_file(mnemolist_xml)
