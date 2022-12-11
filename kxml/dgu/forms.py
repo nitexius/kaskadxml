@@ -6,3 +6,5 @@ class DguForm(forms.Form):
     protocol_name = forms.CharField(max_length=100, label='Название протокола (ГМ)', required=False)
     klogic_file = forms.FileField(label='Klogic XML')
     alarm = forms.BooleanField(label='Сформировать Alarms XML', required=False)
+    mnemolist = forms.BooleanField(label='Сформировать виртуальные мнемосхемы', required=False)
+    mnemolist_file = forms.FileField(label='Mnemolist XML')
