@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from typing import List, Callable
 from io import BytesIO
 from kaskadxml.models import Alarm, Cutout
-from kaskadxml.kaskad_xml import KlogicXML, KloggerXML, AlarmsXML, DefaultAlarmError, c
-from .shift_tools import shift_create
+from kaskadxml.kaskad_xml import KlogicXML, KloggerXML, AlarmsXML, MnemoListXML, GM_MnemoXML, DefaultAlarmError, c
+from .shift_tools import shift_create, template_log_create
 
 
 @dataclass
@@ -72,6 +72,13 @@ def create_shift_output_file(klogic_xml):
         file=shift_create(klogic_xml).getbuffer()
     )
 
+def create_template_log_output_file(mnemolist_xml):
+    """ Получение готового файла со смещениями адресов контроллеров """
+    return OutputFiles(
+        name='kvision_log.txt',
+        file=template_log_create(mnemolist_xml).getbuffer()
+    )
+
 
 def transform_file(in_file_handler: Callable, output_file_handler: Callable, params):
     """ Преобразование файлов конфигураций """
@@ -85,3 +92,15 @@ def set_arch(zip_buffer: BytesIO, files: List[OutputFiles]) -> BytesIO:
         with zipfile.ZipFile(zip_buffer, 'a') as zip_file:
             zip_file.writestr(file.name, file.file)
     return zip_buffer
+
+def set_mnemolist_xml(args):
+    """ Создание класса MnemoListXML """
+    mnemolist_xml_file = args.form.cleaned_data['mnemolist_file']
+    mnemolist_input_file = get_input_file(
+        file=mnemolist_xml_file.read()
+    )
+    return MnemoListXML(mnemolist_input_file, args.klogic_xml.klogic_tree_find(), args.station_id)
+
+def set_gm_mnemo_xml(args):
+    """ Создание класса мнемосхемы ГМ """
+    return GM_MnemoXML(args.station_id)

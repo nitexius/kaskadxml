@@ -3,12 +3,14 @@ from kaskadxml.kaskad_xml import (
     KlogicXML,
     KloggerXML,
     AlarmsXML,
+    MnemoListXML,
+    GM_MnemoXML,
     NewTagsError,
     KloggerBadFormatError,
     AlarmsBadFormatError
 )
 from .new_tags_tools import get_new_tags, save_new_tags
-from .file_tools import create_output_file, create_shift_output_file
+from .file_tools import create_output_file, create_shift_output_file, create_template_log_output_file
 from kaskadxml.log_utils import logger
 
 
@@ -21,6 +23,7 @@ def update_klogic_xml(klogic_xml: KlogicXML):
         klogic_xml.delete_empty_groups()
         klogic_xml.delete_tags(Tag.get_bad_tags())
         klogic_xml.add_comment()
+        klogic_xml.rename_tags(Tag.get_standart_tag_names())
         klogic_xml.set_noffl(Tag.get_noffl_tags())
         return create_output_file(klogic_xml), create_shift_output_file(klogic_xml)
 
@@ -42,3 +45,16 @@ def update_alarms_xml(alarm_xml: AlarmsXML, args):
         return create_output_file(alarm_xml)
     except AttributeError:
         raise AlarmsBadFormatError('Alarm XML: Неправильный формат')
+
+def update_mnemolist_xml(mnemolist_xml: MnemoListXML, args):
+    mnemolist_xml.set_mnemolist_xml(args.klogic_xml)
+    return create_output_file(mnemolist_xml)
+
+def update_gm_mnemo_xml(gm_mnemo_xml: GM_MnemoXML, args, mnemolist_xml: MnemoListXML):
+    gm_mnemo_xml.set_gm_mnemo_xml(
+        args.klogic_xml,
+        mnemolist_xml,
+        Tag.get_kvision_alarms(),
+        Tag.get_kvision_tags()
+    )
+    return create_output_file(gm_mnemo_xml), create_template_log_output_file(mnemolist_xml.template_log)
