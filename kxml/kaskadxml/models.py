@@ -1,5 +1,5 @@
 from django.db import models
-from .kaskad_xml import alrm, xo_choices
+from .kaskad_xml import alrm, xo_choices, kvision_attrs
 
 TAG_TYPES = (
     ('1', 'good_tag'),
@@ -66,14 +66,16 @@ class HistoryAttr(models.Model):
 class Tag(models.Model):
     """Используемые переменные"""
     name = models.CharField(max_length=100, verbose_name='Название переменной', unique=True)                #
+    new_name = models.CharField(max_length=100, default='-', verbose_name='Название по стандарту')
     tag_type = models.CharField(
         max_length=100,
         verbose_name='Тип переменной',
         choices=TAG_TYPES
     )
     alarm_id = models.CharField(max_length=100, default='None', verbose_name='Код аварии', choices=alrm)    #
-    bdtp = models.BooleanField(default=False, verbose_name='Архивируемая переменная')
+    bdtp = models.BooleanField(default=False, verbose_name='Арх. переменная')
     noffl = models.BooleanField(default=False, verbose_name='ФБ noffl')
+    kvision_attr = models.CharField(max_length=100, default='None', verbose_name='Визуализация', choices=kvision_attrs)
     controller = models.CharField(max_length=100, default="", verbose_name='Название контроллера')
 
     class Meta:
@@ -86,6 +88,10 @@ class Tag(models.Model):
         return cls.objects.exclude(tag_type='3').values('id', 'name')
 
     @classmethod
+    def get_standart_tag_names(cls):
+        return cls.objects.exclude(new_name='-').values('name', 'new_name')
+
+    @classmethod
     def get_noffl_tags(cls):
         return cls.objects.filter(noffl='1').values('name')
 
@@ -93,6 +99,21 @@ class Tag(models.Model):
     def get_alarm_tags(cls):
         return cls.objects.exclude(alarm_id__in=['0', 'None']).values('name', 'alarm_id')
 
+    @classmethod
+    def get_kvision_alarms(cls):
+        return cls.objects.exclude(alarm_id__in=[
+            '0',
+            'None',
+            'Cutout',
+            'A03-alarm-delay',
+            'A13-high-lim-air',
+            'r12'
+        ]).values('name', 'alarm_id', 'kvision_attr')
+    
+    @classmethod
+    def get_kvision_tags(cls):
+        return cls.objects.exclude(kvision_attr__in=['None', 'a45']).values('name', 'alarm_id', 'kvision_attr')
+    
     @classmethod
     def get_bdtp_tags(cls):
         return cls.objects.filter(bdtp='1').values()
@@ -103,4 +124,3 @@ class Tag(models.Model):
 
     def __str__(self):
         return self.name
-

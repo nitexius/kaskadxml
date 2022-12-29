@@ -7,3 +7,5 @@ class KlogicForm(forms.Form):
     bd = forms.BooleanField(label='Сформировать Klogger XML', required=False)
     klogger_file = forms.FileField(label='Klogger XML', required=False)
     alarm = forms.BooleanField(label='Сформировать Alarms XML', required=False)
+    mnemolist = forms.BooleanField(label='Сформировать мнемосхему ГМ', required=False)
+    mnemolist_file = forms.FileField(label='Mnemolist XML', required=False)

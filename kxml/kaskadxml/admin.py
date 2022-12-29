@@ -14,9 +14,9 @@ class TagsResource(resources.ModelResource):
 
 class TagsAdmin(ImportExportModelAdmin):
     resource_class = TagsResource
-    list_display = ['id', 'name', 'alarm_id', 'bdtp', 'noffl', 'tag_type', 'controller']
-    list_filter = ('tag_type', 'bdtp', 'noffl', 'alarm_id')
-    search_fields = ['id', 'name', 'alarm_id']
+    list_display = ['id', 'name', 'new_name', 'alarm_id', 'bdtp', 'noffl', 'tag_type', 'kvision_attr', 'controller']
+    list_filter = ('tag_type', 'kvision_attr', 'bdtp', 'noffl', 'alarm_id')
+    search_fields = ['id', 'name', 'new_name', 'alarm_id', 'kvision_attr']
 
 
 admin.site.register(Tag, TagsAdmin)
