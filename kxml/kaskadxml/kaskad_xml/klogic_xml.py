@@ -105,6 +105,7 @@ class KlogicXML:
         self.xml_file_name = xml_file_name
         self.parsed_xml = ElementTree.parse(self.xml_path)
         self.prot_code = prot_code
+        self.iec_prot_detected = False
         self.module = None
         self.new_tag_names = []
         self.new_ids = []
@@ -271,6 +272,8 @@ class KlogicXML:
                         klogic_name=self.parsed_xml.find('.//Controller/Settings/Name'),
                         syst_num=self.parsed_xml.find('.//Controller/Settings/SystNum')
                     )
+                if setting.text == i.iec_prot_code:
+                    self.iec_prot_detected = True
         return kl_find
 
     def shift(self) -> ShiftAttrs:
@@ -420,6 +423,29 @@ class KlogicXML:
                     smart_divide = fb  # ФБ smart divide
         self.insert_task_elements(kl_find)
         self.update_all_n(smart_divide)
+
+    def rename_alarm_tags(self, standart_tags: Iterable):
+        """ Переименование аварий централей 551, 351 по стандарту """
+        all_groups = self.parsed_xml.findall('.//Group')
+        for group in all_groups:
+            if group.attrib['Name'] == 'Alarms':
+                for alarm_number, in_out_group in enumerate(group):
+                    try:
+                        alarm_name = group[alarm_number].attrib['Name'].split(f'{alarm_number}_')[i.alarm_split]
+                        for new_tag_name in standart_tags:
+                            if alarm_name == new_tag_name['name']:
+                                new_alarm_name = new_tag_name['new_name']
+                                group[alarm_number].attrib['Name'] = f'{alarm_number}_{new_alarm_name}'
+                    except (KeyError, IndexError):
+                        pass
+    
+    def rename_tags(self, standart_tags: Iterable):
+        """ Переименование аварий тегов по стандарту """
+        all_inout = self.parsed_xml.findall('.//InOut')
+        for inout in all_inout:
+            for new_tag_name in standart_tags:
+                if inout.attrib['Name'] == new_tag_name['name']:
+                    inout.attrib['Name'] = new_tag_name['new_name']
 
     def write(self, xml_path):
         self.parsed_xml.write(xml_path)

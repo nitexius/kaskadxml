@@ -11,7 +11,8 @@ from .alarms_xml import (
     AlarmTagAttrs,
     AlarmAttrs,
 )
-from .alrm import alrm, stations, xo_choices
+from .kvision import MnemoListXML, GM_MnemoXML
+from .alrm import alrm, stations, xo_choices, kvision_attrs
 from .indices import indices as i, constants as c, smart_divide_all_n
 from .exceptions import (
     ErrorMissingProduct,
